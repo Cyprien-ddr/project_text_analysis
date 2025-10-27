@@ -1,5 +1,5 @@
 *.csv
-*.txt
+*.json
 
 __pycache__/
 *.py[cod]
