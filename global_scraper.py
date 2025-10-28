@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Any
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,7 +12,7 @@ import csv
 import time
 
 
-def extract_restaurant_info(element) -> dict:
+def extract_restaurant_info(element) -> dict[Any, Any] | None:
     """
     Extract structured restaurant details from a listing WebElement.
 
@@ -308,8 +309,7 @@ class MichelinThailandScraper:
                 if count > 0:
                     print(f"  {stars} star: {count}")
 
-        print(f"Bib gourmand: {[len(restaurants) in self.restaurants if restaurants.get('distinction') else 0]}")
-
+        print(f"Bib gourmand: {len([r for r in self.restaurants if r.get('distinction') == 'Bib Gourmand'])}")
         cities = {}
         for r in self.restaurants:
             city = r.get('location', 'Unknown')

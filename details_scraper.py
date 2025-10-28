@@ -91,8 +91,8 @@ class MichelinDetailScraper:
         :rtype: str
         """
         try:
-            address = self.driver.find_element(By.CSS_SELECTOR,
-                                               "div.restaurant-details__heading--address, li.restaurant-details__heading--list-item:has(svg[data-icon='location'])").text
+            address = self.driver.find_element(By.CSS_SELECTOR,"div.data-sheet__detail-info div.data-sheet__block > div.data-sheet__block--text:nth-of-type(1) ").text
+
             return address.strip()
         except NoSuchElementException:
             try:
@@ -157,21 +157,21 @@ class MichelinDetailScraper:
         :rtype: dict | str
         """
         try:
-            hours_cards = self.driver.find_elements(By.CSS_SELECTOR, "div.card-borderline")
+            hours_cards = self.driver.find_elements(By.CSS_SELECTOR, "div.restaurant-details__components, section.section section-main:nth-of-type(3), div.card-borderline")
             if not hours_cards:
                 return 'N/A'
-
             hours_dict = {}
             for card in hours_cards:
                 try:
                     day = card.find_element(By.CSS_SELECTOR, "div.card--title").text.strip()
-                    hours = card.find_element(By.CSS_SELECTOR, "div.card--content").text.strip()
-                    if day and hours:
-                        hours_dict[day] = hours
+                    hours_elements = card.find_elements(By.CSS_SELECTOR, "div.card--content")
+
+                    if day and hours_elements:
+                        hours_list = [h.text.strip() for h in hours_elements if h.text.strip()]
+                        hours_dict[day] = ", ".join(hours_list) if hours_list else "closed"
 
                 except NoSuchElementException:
                     continue
-
             return hours_dict if hours_dict else 'N/A'
 
         except NoSuchElementException:
@@ -189,29 +189,88 @@ class MichelinDetailScraper:
         """
         try:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
+            try:
+                nearby_heading = self.driver.find_element(By.XPATH, "//h2[contains(text(), 'Nearby Restaurants')]")
+                nearby_container = nearby_heading.find_element(By.XPATH,
+                                                               "./ancestor::div[contains(@class, 'container')]")
+            except NoSuchElementException:
+                return 'N/A'
 
-            nearby_section = self.driver.find_element(By.CSS_SELECTOR,
-                                                      "section.section-nearby-restaurants, div.nearby-restaurants")
-            nearby_cards = nearby_section.find_elements(By.CSS_SELECTOR, "div.card__menu, a.card__menu")
+            nearby_cards = nearby_container.find_elements(By.CSS_SELECTOR, "div.card__menu.selection-card")
+
+            if not nearby_cards:
+                return 'N/A'
 
             nearby_list = []
-            # HERE I STOP AT 10 RESTAURANT
-            for card in nearby_cards[:10]:
+            for card in nearby_cards[:9]:
                 try:
-                    name = card.find_element(By.CSS_SELECTOR, "h3, .card__menu-title").text.strip()
-                    url = card.find_element(By.CSS_SELECTOR, "a").get_attribute('href')
+
+                    name_element = card.find_element(By.CSS_SELECTOR, "h3.card__menu-content--title a")
+                    name = name_element.get_attribute('textContent').strip()
+
+                    url = name_element.get_attribute('href')
+
+                    try:
+                        location_elements = card.find_elements(By.CSS_SELECTOR, "div.card__menu-footer--score")
+                        location = location_elements[0].get_attribute('textContent').strip() if location_elements else 'N/A'
+                    except:
+                        location = 'N/A'
+                    try:
+                        price_cuisine_elements = card.find_elements(By.CSS_SELECTOR, "div.card__menu-footer--score")
+                        if len(price_cuisine_elements) > 1:
+                            price_cuisine = price_cuisine_elements[1].get_attribute('textContent').strip()
+                            if '·' in price_cuisine:
+                                parts = price_cuisine.split('·')
+                                price = parts[0].strip()
+                                cuisine = parts[1].strip()
+                            else:
+                                price = 'N/A'
+                                cuisine = price_cuisine
+                        else:
+                            price = 'N/A'
+                            cuisine = 'N/A'
+                    except:
+                        price = 'N/A'
+                        cuisine = 'N/A'
+
+                    try:
+                        distinction_div = card.find_element(By.CSS_SELECTOR, "div.card__menu-content--distinction")
+                        award_imgs = distinction_div.find_elements(By.CSS_SELECTOR, "img.michelin-award")
+
+                        star_count = 0
+                        distinction = 'None'
+
+                        for img in award_imgs:
+                            src = img.get_attribute('src')
+                            if '1star' in src:
+                                star_count += 1
+                            elif 'bib-gourmand' in src:
+                                distinction = 'Bib Gourmand'
+
+                        if star_count > 0:
+                            distinction = f'{star_count} star(s)'
+                    except:
+                        star_count = 0
+                        distinction = 'None'
 
                     nearby_list.append({
                         'name': name,
-                        'url': url
+                        'url': url,
+                        'location': location,
+                        'price': price,
+                        'cuisine': cuisine,
+                        'stars': star_count,
+                        'distinction': distinction
                     })
-                except:
+
+                except Exception as e:
+                    print(f"Erreur extraction restaurant nearby: {e}")
                     continue
 
             return nearby_list if nearby_list else 'N/A'
 
-        except NoSuchElementException:
+        except Exception as e:
+            print(f"Erreur section nearby: {e}")
             return 'N/A'
 
     def extract_price_range(self) -> str:
@@ -225,9 +284,9 @@ class MichelinDetailScraper:
         :rtype: str
         """
         try:
-            price = self.driver.find_element(By.CSS_SELECTOR,
-                                             "div.restaurant-details__heading--price, li:has-text('฿')").text
-            return price.strip()
+            price = self.driver.find_element(By.CSS_SELECTOR,"div.data-sheet__detail-info div.data-sheet__block > div.data-sheet__block--text:nth-of-type(2)").text
+            price = price.split(" · ")
+            return price[0]
         except:
             return 'N/A'
 
@@ -235,16 +294,16 @@ class MichelinDetailScraper:
         """
         Extract the cuisine type from the current Michelin restaurant page.
 
-        Uses a CSS selector targeting the data-sheet content or the cuisine block.
+        Uses a CSS selector targeting the data-sheet content.
         Returns trimmed text if found, otherwise 'N/A'.
 
         :return: Cuisine type text or 'N/A'.
         :rtype: str
         """
         try:
-            cuisine = self.driver.find_element(By.CSS_SELECTOR,
-                                               "div.data-sheet__block--content span, div.restaurant-details__cuisine").text
-            return cuisine.strip()
+            cuisine = self.driver.find_element(By.CSS_SELECTOR,"div.data-sheet__detail-info div.data-sheet__block > div.data-sheet__block--text:nth-of-type(2)").text
+            cuisine = cuisine.split(" · ")
+            return cuisine[1]
         except:
             return 'N/A'
 
@@ -252,45 +311,20 @@ class MichelinDetailScraper:
         """
         Extract the restaurant's external website URL from the current Michelin page.
 
-        Searches for the first anchor with an http href that is not a Michelin, Maps, or tel link,
-        and returns its href. Falls back to 'N/A' if not found or on error.
-
         :return: Website URL or 'N/A'.
         :rtype: str
         """
         try:
-            website = self.driver.find_element(By.CSS_SELECTOR,
-                                               "a[href^='http']:not([href*='michelin']):not([href*='maps']):not([href*='tel:'])").get_attribute(
-                'href')
-            return website
-        except:
-            return 'N/A'
-
-    def extract_facilities(self) -> list | str:
-        """
-        Extract the list of facilities and services from the current Michelin restaurant page.
-
-        Finds the services section via CSS selectors, collects non-empty item texts while
-        filtering out header labels, and returns them as a list. If none are found or on
-        error, returns 'N/A'.
-
-        :return: List of facility strings or 'N/A'.
-        :rtype: list | str
-        """
-        try:
-            facilities_section = self.driver.find_element(By.CSS_SELECTOR, "div.restaurant-details__services")
-            facilities = facilities_section.find_elements(By.CSS_SELECTOR, "li, div.service-item")
-
-            facilities_list = []
-            for facility in facilities:
-                text = facility.text.strip()
-                if text and text not in ['OPENING HOURS', 'Opening hours', 'FACILITIES & SERVICES',
-                                         'Facilities & Services']:
-                    facilities_list.append(text)
-
-            return facilities_list if facilities_list else 'N/A'
-        except:
-            return 'N/A'
+            website_link = self.driver.find_element(By.XPATH, "//a[contains(text(), 'Visit Website')]")
+            website_url = website_link.get_attribute('href')
+            return website_url if website_url else 'N/A'
+        except NoSuchElementException:
+            try:
+                website_link = self.driver.find_element(By.CSS_SELECTOR, "a[data-event='CTA_website']")
+                website_url = website_link.get_attribute('href')
+                return website_url if website_url else 'N/A'
+            except:
+                return 'N/A'
 
     def scrape_restaurant_details(self, url: str) -> dict:
         """
@@ -310,7 +344,7 @@ class MichelinDetailScraper:
 
         try:
             self.driver.get(url)
-            time.sleep(3)
+            # time.sleep(3)
 
             details = {
                 'url': url,
@@ -321,15 +355,21 @@ class MichelinDetailScraper:
                 'price_range': self.extract_price_range(),
                 'cuisine_type': self.extract_cuisine_type(),
                 'website': self.extract_website(),
-                'facilities': self.extract_facilities(),
                 'nearby_restaurants': self.extract_nearby_restaurants()
             }
 
-            print(f"{details.get('address', 'N/A')[:50]}...")
+            print(f"phone: {details.get('phone', 'N/A')}...")
+            print(f"address: {details.get('address', 'N/A')[:50]}...")
+            print(f"description: {details.get('description', 'N/A')[:50]}...")
+            print(f"opening hours: {details.get('opening_hours', 'N/A')}...")
+            print(f"price_range: {details.get('price_range', 'N/A')}...")
+            print(f"cuisine_type: {details.get('cuisine_type', 'N/A')}...")
+            print(f"nearby_restaurants: {len(details.get('nearby_restaurants', ''))}")
+            print(f"website: {details.get('website', 'N/A')}")
             return details
 
         except Exception as e:
-            print(f"✗ Error: {e}")
+            print(f"✗✗✗ Error: {e}")
             return {
                 'url': url,
                 'error': str(e)
@@ -437,9 +477,12 @@ class MichelinDetailScraper:
 
             flat_data.append(flat_restaurant)
 
-        keys = flat_data[0].keys()
+        all_keys = set()
+        for restaurant in flat_data:
+            all_keys.update(restaurant.keys())
+
         with open(filename, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
+            writer = csv.DictWriter(f, fieldnames=sorted(all_keys))
             writer.writeheader()
             writer.writerows(flat_data)
         print(f"Saved in {filename}")
@@ -451,16 +494,25 @@ if __name__ == "__main__":
     try:
         # Option 1: Scraper from the CSV
 
-        # restaurants = scraper.scrape_all_from_csv(
-        #     csv_file='michelin_thailand.csv',
-        #     start_index=0,
-        #     max_restaurants=10
-        # )
+        restaurants = scraper.scrape_all_from_csv(
+            csv_file='michelin_thailand.csv',
+            start_index=0,
+            max_restaurants=None
+        )
 
         # Option 2: Scraper only one URL
 
-        details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/khon-kaen-region/khon-kaen/restaurant/here-joi-beef-noodle')
-        scraper.restaurants_details.append(details)
+        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/ma-maison-1217053')
+        # scraper.restaurants_details.append(details)
+        #
+        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/chiang-mai-region/chiang-mai/restaurant/gongkham')
+        # scraper.restaurants_details.append(details)
+        #
+        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/kaenkrung')
+        # scraper.restaurants_details.append(details)
+        #
+        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/mia')
+        # scraper.restaurants_details.append(details)
 
         # Save results
         if scraper.restaurants_details:
