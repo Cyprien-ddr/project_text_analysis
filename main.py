@@ -16,6 +16,7 @@ import os
 import sys
 from global_scraper import MichelinThailandScraper
 from details_scraper import MichelinDetailScraper
+from google_reviews_scraper import GooglePlacesReviewsScraper
 
 
 def print_header(text: str) -> None:
@@ -128,6 +129,39 @@ def run_details_scraper(max_restaurants: int | None = None, headless: bool = Tru
         print(f"\nError during detail scraping: {e}")
         return False
 
+def run_google_reviews_scraper(api_key: str, max_restaurants: int | None = None) -> bool:
+    print_header("STAGE 3: Scraping Google Reviews (Official API)")
+
+    csv_file = 'michelin_thailand.csv'
+    if not os.path.exists(csv_file):
+        print(f"\nError: {csv_file} not found.")
+        print("Please run Stage 1 first to generate it.")
+        return False
+
+    try:
+        scraper = GooglePlacesReviewsScraper(api_key=api_key)
+
+        results = scraper.scrape_from_csv(
+            csv_file=csv_file,
+            start_index=0,
+            max_restaurants=max_restaurants
+        )
+
+        if not results:
+            print("\nNo reviews collected.")
+            return False
+
+        scraper.save_to_json()
+        scraper.save_reviews_only_csv()
+        scraper.print_summary()
+
+        print(f"\nStage 3 completed: Google reviews scraped")
+        return True
+
+    except Exception as e:
+        print(f"\nError during Google reviews scraping: {e}")
+        return False
+
 
 def main():
     """
@@ -184,6 +218,20 @@ Examples:
         help='Which stage to run: global (listings), details, or both (default: both)'
     )
 
+    parser.add_argument(
+        '--google-api-key',
+        type=str,
+        default=None,
+        help='Google Places API key (required for Stage 3)'
+    )
+
+    parser.add_argument(
+        '--stage',
+        choices=['global', 'details', 'reviews', 'both'],
+        default='both',
+        help='Which stage to run: global, details, reviews, or both (default: both)'
+    )
+
     args = parser.parse_args()
 
     headless = not args.no_headless
@@ -219,6 +267,16 @@ Examples:
             if args.stage == 'both':
                 print("Note: Basic restaurant data was still collected in Stage 1.")
             sys.exit(1)
+
+    if args.stage in ['reviews', 'both']:
+        if not args.google_api_key:
+            print("\nMissing Google API key. Use --google-api-key YOUR_KEY")
+            sys.exit(1)
+
+        run_google_reviews_scraper(
+            api_key=args.google_api_key,
+            max_restaurants=args.max_restaurants
+        )
 
     print_header("SCRAPING COMPLETED SUCCESSFULLY")
 

@@ -44,6 +44,8 @@ This will:
 2. Save basic info to `michelin_thailand.json` and `michelin_thailand.csv`
 3. Scrape detailed information for each restaurant
 4. Save detailed data to `michelin_thailand_details.json` and `michelin_thailand_details.csv`
+5. Scrape google review for each restaurant
+6. Save data to `google_reviews.csv`
 
 ### Option 2: Run Stages Separately
 
@@ -124,6 +126,14 @@ python details_scraper.py
   "nearby_restaurants": [...]
 }
 ```
+
+#### Stage 3: Google Review Detailed Information
+
+- `google_review_scraper.py` - Google review of the restaurant in CSV format
+
+### Output example of detailed Google Review Info (from google_review_scraper.py)
+
+I-SANG ,"Bangkok, Thailand",Korean Contemporary,0,4.7,27,Hangry Joobert,5,"Dinner at I-SANG was a really nice modern Korean fine dining experience for me. Helmed by Chef @steve_ouiiii, the tasting menu reimagines Korean flavors with refined techniques, balancing tradition and contemporary finesse.
 
 ## ⚙️ Configuration Options
 
