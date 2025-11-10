@@ -14,43 +14,22 @@ import pandas as pd
 def load_restaurants_from_csv(csv_file: str) -> pd.DataFrame | None:
     """
     Load a CSV of restaurant records into a DataFrame.
-
-    Reads the given CSV path with pandas, logs the number of rows loaded, and returns
-    the DataFrame. On failure, prints the error and returns None.
-
-    :param csv_file: Path to the CSV file containing restaurant data.
-    :type csv_file: str
-    :return: Loaded DataFrame or None on error.
-    :rtype: pd.DataFrame | None
     """
     try:
         df = pd.read_csv(csv_file)
         print(f"Load {len(df)} restaurants from {csv_file}")
         return df
     except Exception as e:
-        print(f"Error while loadiing the CSV: {e}")
+        print(f"Error while loading the CSV: {e}")
         return None
 
 
 class MichelinDetailScraper:
     """
     Scrapes detailed restaurant data from the Michelin Guide using Selenium.
-
-    This class configures a Chrome WebDriver (headless by default), navigates to
-    restaurant pages, and extracts fields such as address, phone, description,
-    opening hours, price range, cuisine, website, facilities, and nearby restaurants.
-    It supports bulk scraping from a CSV of URLs, aggregates results in memory, and
-    exports data to JSON or CSV.
-
-    Attributes:
-        base_url: Root URL for Michelin Guide pages.
-        driver: Selenium WebDriver instance.
-        wait: Explicit wait helper for element synchronization.
-        restaurants_details: In-memory list of scraped restaurant dictionaries.
-
-    Methods provide granular extractors for each field, page-level scraping for a
-    single URL, batch processing from CSV, and persistence utilities.
+    Now includes extraction of "Good for" tags.
     """
+
     def __init__(self, headless=True):
         self.base_url = "https://guide.michelin.com"
         # Chrome config
@@ -68,16 +47,84 @@ class MichelinDetailScraper:
         self.restaurants_details = []
 
     def __del__(self) -> None:
-        """
-        Clean up resources when the scraper is garbage-collected.
-
-        If a Selenium WebDriver was initialized, gracefully quits the driver to
-        close the browser session and free system resources.
-
-        :return: None
-        """
+        """Clean up resources when the scraper is garbage-collected."""
         if hasattr(self, 'driver'):
             self.driver.quit()
+
+    def extract_tags(self) -> list:
+        """
+        Extract "Good for" tags from the restaurant page.
+
+        Looks for the tag section on the page and extracts all applicable tags
+        such as Chef's Table, Date night, Family Friendly, etc.
+
+        :return: List of "Good for" tag names, or empty list if none found.
+        :rtype: list
+        """
+        try:
+            # Try to find the tags section
+            tags = []
+
+            # Method 1: Look for tag elements in the page
+            try:
+                tag_elements = self.driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "span.tag--pills"
+                )
+
+                for tag in tag_elements:
+                    tag_text = tag.text.strip()
+                    if tag_text:
+                        tags.append(tag_text)
+
+                if tags:
+                    print(f"  Found tags (Method 1): {tags}")
+                    return tags
+            except Exception as e:
+                print(f"  Method 1 failed: {e}")
+
+            # Method 2: Look for specific data attributes or classes
+            try:
+                tag_containers = self.driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "div.restaurant-details__services ul li, div[class*='service'] li"
+                )
+
+                for container in tag_containers:
+                    tag_text = container.text.strip()
+                    if tag_text:
+                        tags.append(tag_text)
+
+                if tags:
+                    print(f"  Found tags (Method 2): {tags}")
+                    return tags
+            except Exception as e:
+                print(f"  Method 2 failed: {e}")
+
+            # Method 3: Look in the data-sheet area
+            try:
+                service_elements = self.driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "div.data-sheet__block--list li"
+                )
+
+                for elem in service_elements:
+                    tag_text = elem.text.strip()
+                    if tag_text and not any(x in tag_text.lower() for x in ['credit', 'cash', 'wheelchair', 'parking']):
+                        tags.append(tag_text)
+
+                if tags:
+                    print(f"  Found tags (Method 3): {tags}")
+                    return tags
+            except Exception as e:
+                print(f"  Method 3 failed: {e}")
+
+            print("  No 'Good for' tags found")
+            return []
+
+        except Exception as e:
+            print(f"  Error extracting Good for tags: {e}")
+            return []
 
     def extract_address(self) -> str:
         """
@@ -204,10 +251,8 @@ class MichelinDetailScraper:
             nearby_list = []
             for card in nearby_cards[:9]:
                 try:
-
                     name_element = card.find_element(By.CSS_SELECTOR, "h3.card__menu-content--title a")
                     name = name_element.get_attribute('textContent').strip()
-
                     url = name_element.get_attribute('href')
 
                     try:
@@ -355,6 +400,7 @@ class MichelinDetailScraper:
                 'price_range': self.extract_price_range(),
                 'cuisine_type': self.extract_cuisine_type(),
                 'website': self.extract_website(),
+                'tags': self.extract_tags(),
                 'nearby_restaurants': self.extract_nearby_restaurants()
             }
 
@@ -364,6 +410,7 @@ class MichelinDetailScraper:
             print(f"opening hours: {details.get('opening_hours', 'N/A')}...")
             print(f"price_range: {details.get('price_range', 'N/A')}...")
             print(f"cuisine_type: {details.get('cuisine_type', 'N/A')}...")
+            print(f"tags: {details.get('tags', 'N/A')}")
             print(f"nearby_restaurants: {len(details.get('nearby_restaurants', ''))}")
             print(f"website: {details.get('website', 'N/A')}")
             return details
@@ -406,7 +453,7 @@ class MichelinDetailScraper:
         end_index = min(start_index + max_restaurants, total) if max_restaurants else total
 
         print(f"\n{'=' * 70}")
-        print(f"Scraping of {end_index - start_index} restaurants (index {start_index} à {end_index - 1})")
+        print(f"Scraping of {end_index - start_index} restaurants (index {start_index} to {end_index - 1})")
         print(f"{'=' * 70}")
 
         for idx, row in df.iloc[start_index:end_index].iterrows():
@@ -469,8 +516,8 @@ class MichelinDetailScraper:
 
             if isinstance(flat_restaurant.get('opening_hours'), dict):
                 flat_restaurant['opening_hours'] = json.dumps(flat_restaurant['opening_hours'], ensure_ascii=False)
-            if isinstance(flat_restaurant.get('facilities'), list):
-                flat_restaurant['facilities'] = '; '.join(flat_restaurant['facilities'])
+            if isinstance(flat_restaurant.get('tags'), list):
+                flat_restaurant['tags'] = '; '.join(flat_restaurant['tags'])
             if isinstance(flat_restaurant.get('nearby_restaurants'), list):
                 flat_restaurant['nearby_restaurants'] = json.dumps(flat_restaurant['nearby_restaurants'],
                                                                    ensure_ascii=False)
@@ -492,46 +539,23 @@ if __name__ == "__main__":
     scraper = MichelinDetailScraper(headless=True)
 
     try:
-        # Option 1: Scraper from the CSV
-
         restaurants = scraper.scrape_all_from_csv(
             csv_file='michelin_thailand.csv',
             start_index=0,
             max_restaurants=None
         )
-
-        # Option 2: Scraper only one URL
-
-        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/ma-maison-1217053')
-        # scraper.restaurants_details.append(details)
-        #
-        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/chiang-mai-region/chiang-mai/restaurant/gongkham')
-        # scraper.restaurants_details.append(details)
-        #
-        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/kaenkrung')
-        # scraper.restaurants_details.append(details)
-        #
-        # details = scraper.scrape_restaurant_details('https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/mia')
-        # scraper.restaurants_details.append(details)
-
-        # Save results
         if scraper.restaurants_details:
             scraper.save_to_json()
             scraper.save_to_csv()
 
             print(f"\n{'=' * 70}")
-            print(f"TLDR")
+            print(f"SUMMARY")
             print(f"{'=' * 70}")
             print(f"Total restaurants with details: {len(scraper.restaurants_details)}")
 
-            # Stats
-            with_phone = len([r for r in scraper.restaurants_details if r.get('phone') != 'N/A'])
-            with_address = len([r for r in scraper.restaurants_details if r.get('address') != 'N/A'])
-            with_description = len([r for r in scraper.restaurants_details if r.get('description') != 'N/A'])
-
-            print(f"  - phone: {with_phone}")
-            print(f"  - address: {with_address}")
-            print(f"  - description: {with_description}")
+            with_tags = len([r for r in scraper.restaurants_details if
+                             r.get('good_for_tags') and len(r.get('good_for_tags', [])) > 0])
+            print(f"  - Restaurants with 'Good for' tags: {with_tags}")
 
     finally:
         del scraper
