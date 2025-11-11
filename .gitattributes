@@ -1,2 +1,4 @@
 model/** filter=lfs diff=lfs merge=lfs -text
+model/michelin_model/** filter=lfs diff=lfs merge=lfs -text
+model/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
 model/michelin_model/model.safetensors filter=lfs diff=lfs merge=lfs -text
