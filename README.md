@@ -1,214 +1,478 @@
-# 🍽️ Michelin Thailand Restaurant Scraper
+# 🍽️ Michelin Thailand Restaurant Search & Scraper
 
-A comprehensive web scraping tool for collecting detailed information about Michelin-starred and Bib Gourmand restaurants in Thailand from the official Michelin Guide website.
+A comprehensive system for scraping, indexing, and intelligently searching Michelin-starred and Bib Gourmand restaurants in Thailand. Features hybrid semantic search with ML-powered tag prediction and an interactive terminal interface.
 
-## 📋 Features
+## ✨ Key Features
 
-- **Two-stage scraping process:**
-  - **Stage 1 (Global):** Scrapes restaurant listings with basic info (name, stars, location, price, cuisine)
-  - **Stage 2 (Details):** Scrapes detailed information for each restaurant (address, phone, description, opening hours, nearby restaurants, etc.)
-- Selenium-based web scraping with headless Chrome support
-- Automatic pagination handling
-- Duplicate detection and prevention
-- Export to both JSON and CSV formats
-- Comprehensive error handling and logging
-- Progress tracking during scraping
+### 🔍 Intelligent Search System
+- **Hybrid Search Engine**: Combines semantic similarity (FAISS) + ML tag prediction + food detection
+- **Smart Scoring**: Weighted scoring system balancing relevance across multiple dimensions
+- **ML Tag Prediction**: RoBERTa-based multi-label classifier predicting restaurant attributes
+- **Food Detection**: Automatic detection of food items in queries with category matching
+- **Interactive TUI**: Beautiful terminal interface built with Textual
+
+### 🕷️ Comprehensive Web Scraper
+- **Three-Stage Pipeline**:
+  - Stage 1: Restaurant listings (name, stars, location, price, cuisine)
+  - Stage 2: Detailed info (address, phone, description, hours, tags)
+  - Stage 3: Google reviews via official Places API
+- Selenium-based with headless Chrome support
+- Automatic pagination and duplicate prevention
+- Exports to JSON and CSV
+
+## 📋 Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Scraping Data](#scraping-data)
+- [Building the Search Index](#building-the-search-index)
+- [Using the Search Interface](#using-the-search-interface)
+- [ML Tag Prediction](#ml-tag-prediction)
+- [Architecture](#architecture)
+- [Output Files](#output-files)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
 
 ## 🛠️ Prerequisites
 
-- Python 3.8 or higher
-- Google Chrome browser installed
-- ChromeDriver (will be managed automatically by Selenium)
+- Python 3.8+
+- Google Chrome browser
+- Google Places API key (for Stage 3 only)
 
 ## 📦 Installation
 
-1. Clone or download this repository
-
-2. Install required dependencies:
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd michelin-thailand-search
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
+**Required packages:**
+- `selenium` - Web scraping
+- `pandas` - Data manipulation
+- `transformers` - ML models
+- `sentence-transformers` - Semantic embeddings
+- `faiss-cpu` - Vector similarity search
+- `torch` - Deep learning
+- `textual` - Terminal UI
+- `scikit-learn` - ML utilities
+
 ## 🚀 Quick Start
 
-### Option 1: Run Everything (Recommended)
-
-Use the main script to run both scraping stages automatically:
+### 1. Scrape Restaurant Data
 
 ```bash
-python main.py
+# Run all scraping stages
+python main.py --max-pages 20
+
+# Or run specific stages
+python main.py --stage global           # Stage 1 only
+python main.py --stage details          # Stage 2 only
+python main.py --stage reviews --google-api-key YOUR_KEY  # Stage 3 only
 ```
 
-This will:
-1. Scrape all restaurant listings from Michelin Thailand
-2. Save basic info to `michelin_thailand.json` and `michelin_thailand.csv`
-3. Scrape detailed information for each restaurant
-4. Save detailed data to `michelin_thailand_details.json` and `michelin_thailand_details.csv`
-5. Scrape google review for each restaurant
-6. Save data to `google_reviews.csv`
+### 2. Build the Search Index
 
-### Option 2: Run Stages Separately
+```bash
+python ingest.py
+```
 
-#### Stage 1: Scrape Restaurant Listings
+This creates:
+- `restaurants.index` - FAISS vector index
+- `restaurants.pkl` - Processed restaurant data
+
+### 3. Train ML Tag Predictor (Optional)
+
+```bash
+python processing.py
+```
+
+Or the model will auto-train on first use if missing.
+
+### 4. Launch Search Interface
+
+```bash
+python search_faiss.py
+```
+
+## 🕷️ Scraping Data
+
+### Stage 1: Restaurant Listings
 
 ```bash
 python global_scraper.py
 ```
 
-**Output files:**
-- `michelin_thailand.json` - Complete restaurant list in JSON format
-- `michelin_thailand.csv` - Complete restaurant list in CSV format
+**Collects:**
+- Restaurant names
+- Star ratings (0-3 stars)
+- Distinctions (Bib Gourmand)
+- Locations
+- Price ranges
+- Cuisine types
+- Michelin Guide URLs
 
-**Data collected:**
-- Restaurant name
-- Michelin Guide URL
-- Star rating (0-3 stars)
-- Distinction (Bib Gourmand, 1/2/3 stars, or None)
-- Location/City
-- Price range
-- Cuisine type
+**Output:** `michelin_thailand.json`, `michelin_thailand.csv`
 
-#### Stage 2: Scrape Detailed Information
-
-⚠️ **Important:** You must run Stage 1 first to generate the CSV file.
+### Stage 2: Detailed Information
 
 ```bash
 python details_scraper.py
 ```
 
-**Output files:**
-- `michelin_thailand_details.json` - Detailed restaurant info in JSON format
-- `michelin_thailand_details.csv` - Detailed restaurant info in CSV format
-
-**Additional data collected:**
-- Full address
-- Phone number
-- Restaurant description
-- Opening hours (day by day)
-- Price range details
-- Specific cuisine type
-- Official website URL
+**Collects:**
+- Full addresses
+- Phone numbers
+- Descriptions
+- Opening hours
+- "Good for" tags (Date night, Family friendly, etc.)
+- Websites
 - Nearby restaurants (up to 9)
 
-## 📊 Output Examples
+**Output:** `michelin_thailand_details.json`, `michelin_thailand_details.csv`
 
-### Basic Restaurant Info (from global_scraper.py)
-```json
-{
-  "name": "Gaggan Anand",
-  "url": "https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/gaggan-anand",
-  "stars": 2,
-  "distinction": "2 star",
-  "location": "Bangkok",
-  "price": "฿฿฿฿",
-  "cuisine": "Indian"
-}
+### Stage 3: Google Reviews
+
+```bash
+python google_reviews_scraper.py --api-key YOUR_API_KEY
 ```
 
-### Detailed Restaurant Info (from details_scraper.py)
-```json
-{
-  "name": "Gaggan Anand",
-  "url": "https://guide.michelin.com/th/en/bangkok-region/bangkok/restaurant/gaggan-anand",
-  "stars": 2,
-  "distinction": "2 star",
-  "location": "Bangkok",
-  "address": "68/1 Soi Langsuan, Bangkok 10330",
-  "phone": "+66 2 652 2700",
-  "description": "Chef Gaggan Anand's progressive Indian cuisine...",
-  "opening_hours": {
-    "Tuesday": "18:00-23:00",
-    "Wednesday": "18:00-23:00"
-  },
-  "price_range": "฿฿฿฿",
-  "cuisine_type": "Indian",
-  "website": "https://www.gaggan.com",
-  "nearby_restaurants": [...]
-}
+**Collects:**
+- Review texts (up to 5 per restaurant)
+- Ratings
+- Author names
+- Publish dates
+- Language codes
+
+**Output:** `google_reviews.csv`, `google_reviews_api.json`
+
+**Getting an API Key:**
+1. Visit [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable "Places API (New)"
+3. Create credentials → API Key
+
+### Complete Pipeline
+
+```bash
+python main.py \
+  --max-pages 20 \
+  --max-restaurants 100 \
+  --google-api-key YOUR_KEY
 ```
 
-#### Stage 3: Google Review Detailed Information
+## 🏗️ Building the Search Index
 
-- `google_review_scraper.py` - Google review of the restaurant in CSV format
+```bash
+python ingest.py
+```
 
-### Output example of detailed Google Review Info (from google_review_scraper.py)
+**Process:**
+1. Loads data from `michelin_thailand.csv`, `michelin_thailand_details.csv`, `google_reviews.csv`
+2. Merges datasets on restaurant names
+3. Creates searchable text combining: name + cuisine + description + English reviews
+4. Generates embeddings using `sentence-transformers/all-MiniLM-L6-v2`
+5. Builds FAISS index with inner product similarity
+6. Saves index and processed data
 
-I-SANG ,"Bangkok, Thailand",Korean Contemporary,0,4.7,27,Hangry Joobert,5,"Dinner at I-SANG was a really nice modern Korean fine dining experience for me. Helmed by Chef @steve_ouiiii, the tasting menu reimagines Korean flavors with refined techniques, balancing tradition and contemporary finesse.
+**Output:**
+- `restaurants.index` - FAISS vector index
+- `restaurants.pkl` - Pickled DataFrame
 
-## ⚙️ Configuration Options
+## 🔍 Using the Search Interface
 
-### Global Scraper (global_scraper.py)
+### Launch the TUI
+
+```bash
+python search_faiss.py
+```
+
+### Features
+
+**Search Capabilities:**
+- Natural language queries: `"romantic dinner with views"`
+- Food-specific: `"best pad thai"`
+- Occasion-based: `"family friendly brunch spot"`
+
+**Filters:**
+- 📍 Location (Bangkok, Phuket, Chiang Mai, etc.)
+- 🏆 Awards (3 star, 2 star, 1 star, Bib Gourmand)
+- 🍽️ Cuisine (Italian, Thai, Japanese, etc.)
+- 💰 Price range
+
+**Keyboard Shortcuts:**
+- `Ctrl+Q` - Quit
+- `Ctrl+R` - Reset filters
+- `Enter` - Search
+
+**Results Display:**
+Each result shows:
+- Rank and restaurant name
+- Michelin distinction (⭐⭐⭐ or 🍴)
+- Location, cuisine, price
+- Description preview
+- Predicted tags with confidence scores
+- Contact info (phone, website)
+- Score breakdown (total, semantic, tags, food)
+
+## 🤖 ML Tag Prediction
+
+### Training the Model
+
+```bash
+python processing.py
+```
+
+**Process:**
+1. Extracts tags from `michelin_thailand_details.csv` ("Good for" tags)
+2. Builds multi-label dataset from descriptions
+3. Trains RoBERTa-base classifier with class balancing
+4. Optimizes classification threshold via F1-macro
+5. Saves model, tokenizer, labels, and threshold
+
+**Model:** `./model/michelin_model/`
+- `pytorch_model.bin` - Trained weights
+- `config.json` - Model config
+- `tokenizer` files
+- `labels.csv` - Tag vocabulary
+- `best_threshold.txt` - Optimal classification threshold
+
+**Tags Predicted:**
+- Date night
+- Family friendly
+- Chef's table
+- Trending
+- Counter seating
+- Local favorite
+- Outdoor dining
+- Group dining
+- Solo dining
+- And more...
+
+### Using the Predictor
 
 ```python
-scraper = MichelinThailandScraper(headless=True)
+from tag_predictor import TagPredictor
 
-# Scrape all pages (default: max 20 pages)
-restaurants = scraper.scrape_all(max_pages=20)
-
-# Or scrape a single specific page
-restaurants = scraper.scrape_single_page(page_number=1)
+predictor = TagPredictor()
+tags = predictor.predict_tags("Perfect for romantic evenings")
+# Returns: {'Date night': 0.87, 'Trending': 0.65}
 ```
 
-### Details Scraper (details_scraper.py)
+## 🏛️ Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 User Query                          │
+│         "romantic pizza place in Bangkok"           │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│              RestaurantSearch                       │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ 1. Apply Filters (location, price, cuisine)  │  │
+│  │ 2. Generate Query Embedding                  │  │
+│  │ 3. FAISS Semantic Search (top K)             │  │
+│  └───────────────────────────────────────────────┘  │
+└──────────────────┬──────────────────────────────────┘
+                   │
+      ┌────────────┼────────────┐
+      ▼            ▼            ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Semantic │ │   Tag    │ │  Food    │
+│  Score   │ │ Predictor│ │ Detector │
+│  (FAISS) │ │ (RoBERTa)│ │ (Regex)  │
+└────┬─────┘ └────┬─────┘ └────┬─────┘
+     │            │            │
+     └────────────┼────────────┘
+                  ▼
+      ┌───────────────────────┐
+      │   Weighted Scoring    │
+      │ Total = 1.8×Semantic  │
+      │       + 0.6×Tags      │
+      │       + 0.4×Food      │
+      └───────────┬───────────┘
+                  ▼
+      ┌───────────────────────┐
+      │   Ranked Results      │
+      │   Display in TUI      │
+      └───────────────────────┘
+```
+
+### Scoring Weights
 
 ```python
-scraper = MichelinDetailScraper(headless=True)
-
-# Scrape all restaurants from CSV
-restaurants = scraper.scrape_all_from_csv(
-    csv_file='michelin_thailand.csv',
-    start_index=0,           # Start from first restaurant
-    max_restaurants=None     # Scrape all (or set a number to limit)
-)
-
-# Or scrape a single restaurant URL
-details = scraper.scrape_restaurant_details('https://guide.michelin.com/...')
+SEMANTIC_WEIGHT = 1.8  # Vector similarity
+TAG_WEIGHT = 0.6       # ML predicted tags
+FOOD_WEIGHT = 0.4      # Food term detection
 ```
 
-## 🔍 Troubleshooting
+## 📂 Output Files
+
+### Scraping Outputs
+
+| File | Description |
+|------|-------------|
+| `michelin_thailand.json` | Basic listings (JSON) |
+| `michelin_thailand.csv` | Basic listings (CSV) |
+| `michelin_thailand_details.json` | Detailed info (JSON) |
+| `michelin_thailand_details.csv` | Detailed info (CSV) |
+| `google_reviews.csv` | All reviews (CSV) |
+| `google_reviews_api.json` | Review API responses (JSON) |
+
+### Index & Model Outputs
+
+| File | Description |
+|------|-------------|
+| `restaurants.index` | FAISS vector index |
+| `restaurants.pkl` | Processed DataFrame |
+| `model/michelin_model/` | ML tag prediction model |
+| `search_logs_detailed.csv` | Search history with scores |
+
+## ⚙️ Configuration
+
+### Search Weights
+
+Edit `search.py`:
+
+```python
+SEMANTIC_WEIGHT = 1.8  # Adjust semantic importance
+TAG_WEIGHT = 0.6       # Adjust tag matching weight
+FOOD_WEIGHT = 0.4      # Adjust food detection weight
+```
+
+### Embedding Model
+
+Change in `search.py` and `ingest.py`:
+
+```python
+MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# Alternative: "paraphrase-multilingual-mpnet-base-v2"
+```
+
+### Classification Threshold
+
+Auto-optimized during training, or manually set in `tag_predictor.py`:
+
+```python
+self.threshold = 0.5  # Default threshold
+```
+
+## 🔧 Troubleshooting
 
 ### ChromeDriver Issues
-If you encounter ChromeDriver errors:
-- Ensure Google Chrome is installed
-- Selenium 4.x automatically manages ChromeDriver, but you can manually install it if needed
 
-### Timeout Errors
-If pages are timing out:
-- Check your internet connection
-- Increase timeout in WebDriverWait (default: 15 seconds)
-- Try running without headless mode to see what's happening:
-  ```python
-  scraper = MichelinThailandScraper(headless=False)
-  ```
+```bash
+# Selenium 4.x auto-manages ChromeDriver
+# But if issues persist:
+pip install --upgrade selenium
+```
 
-### Missing Data
-Some restaurants may have incomplete information:
-- The scrapers mark missing fields as 'N/A'
-- This is expected as not all restaurants provide complete information
+### FAISS Not Working
 
-## 📝 Data Fields Reference
+```bash
+# Use CPU version
+pip install faiss-cpu
 
-### Global Scraper Fields
+# Or GPU version (if CUDA available)
+pip install faiss-gpu
+```
+
+### Model Not Loading
+
+```bash
+# Train from scratch
+python processing.py
+
+# Or download pre-trained (if available)
+# Place in ./model/michelin_model/
+```
+
+### Out of Memory
+
+Reduce batch size in `processing.py`:
+
+```python
+batch_size = 4  # Default is 8
+```
+
+Or use smaller embedding model:
+
+```python
+MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # Smaller
+# Instead of: "paraphrase-multilingual-mpnet-base-v2"
+```
+
+### Search Returns No Results
+
+1. Check if index exists: `ls restaurants.index`
+2. Rebuild index: `python ingest.py`
+3. Try broader query or fewer filters
+
+## 📊 Data Fields Reference
+
+### Basic Fields (Stage 1)
+
 | Field | Type | Description |
 |-------|------|-------------|
 | name | string | Restaurant name |
-| url | string | Michelin Guide page URL |
-| stars | integer | Star rating (0-3) |
-| distinction | string | Award type (Bib Gourmand, X star, None) |
+| url | string | Michelin Guide URL |
+| stars | int | Star rating (0-3) |
+| distinction | string | Award (Bib Gourmand, X star) |
 | location | string | City/area |
 | price | string | Price range (฿ symbols) |
 | cuisine | string | Cuisine type |
 
-### Details Scraper Fields
-All fields from global scraper, plus:
+### Detailed Fields (Stage 2)
 
 | Field | Type | Description |
 |-------|------|-------------|
 | address | string | Full address |
-| phone | string | Contact number |
-| description | string | Restaurant description |
-| opening_hours | dict/string | Opening hours by day |
-| price_range | string | Detailed price information |
-| cuisine_type | string | Specific cuisine type |
-| website | string | Official website URL |
-| nearby_restaurants | list/string | List of nearby restaurants |
+| phone | string | Phone number |
+| description | string | Full description |
+| opening_hours | dict | Hours by day |
+| tags | list | "Good for" tags |
+| website | string | Official URL |
+| nearby_restaurants | list | 9 nearby spots |
+
+### Review Fields (Stage 3)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| restaurant_name | string | Restaurant name |
+| reviewer | string | Reviewer name |
+| rating | float | Review rating |
+| review_text | string | Full review text |
+| date | string | Publish date |
+| language | string | Language code |
+
+## 📝 Search Logs
+
+All searches are logged to `search_logs_detailed.csv`:
+
+```csv
+timestamp,query,predicted_tags,location,distinction,cuisine,price,num_results,details
+2024-01-15 14:30:22,"romantic dinner","Date night(0.87), Trending(0.65)",Bangkok,All,Italian,All,5,"Ristorante [Total=2.456 | Sem=0.892 | Tag=0.523 | ...] ; ..."
+```
+
+## 🎯 Example Queries
+
+```
+"romantic dinner with beautiful views"
+"best pad thai in Bangkok"
+"family friendly Italian restaurant"
+"chef's table experience"
+"affordable street food"
+"trending Japanese omakase"
+"outdoor dining for groups"
+"solo dining with counter seating"
+"local favorite breakfast spot"
+```
+
+## 📄 License
+
+This project is for educational purposes. Respect Michelin Guide's terms of service and robots.txt when scraping.
