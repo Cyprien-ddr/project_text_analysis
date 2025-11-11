@@ -1,5 +1,6 @@
 import re
 import os
+import sys
 from difflib import SequenceMatcher
 
 import pandas as pd
@@ -8,8 +9,8 @@ import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
 
-
 from tag_predictor import TagPredictor
+from temporal_location_detector import TemporalLocationDetector
 
 MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_FILE = "./model/restaurants.index"
@@ -19,19 +20,21 @@ ML_MODEL_PATH = "./model/michelin_model"
 # Scoring weights
 SEMANTIC_WEIGHT = 1.8
 TAG_WEIGHT = 0.6
-HOURS_WEIGHT = 1
+HOURS_WEIGHT = 1.0
+LOCATION_WEIGHT = 0.8
 FOOD_WEIGHT = 0.4
 
 
 class RestaurantSearch:
     """
     Facilitates restaurant search using combined approaches of semantic similarity, machine
-    learning tags, and contextual data about food items.
+    learning tags, temporal matching, location detection, and contextual data about food items.
 
     This class is designed to perform detailed restaurant searches by integrating semantic
-    search methodologies, machine learning-predicted tags, and auxiliary datasets like
-    classified food categories. It provides two key functionalities: detecting food in a
-    user query and executing a hybrid search that refines results based on given filters
+    search methodologies, machine learning-predicted tags, temporal/location detection via spaCy,
+    and auxiliary datasets like classified food categories. It provides comprehensive functionality
+    for detecting time-based queries (lunch, dinner, specific days/times) and location-based
+    queries, then executing a hybrid search that refines results based on given filters
     (e.g., location, cuisine, price). It allows users to retrieve precisely ranked results
     tailored to their preferences.
 
@@ -43,6 +46,8 @@ class RestaurantSearch:
             inputs to match against restaurant embeddings in the index.
         tag_predictor: A helper class for predicting tags from queries, used to refine
             search results.
+        temporal_detector: A TemporalLocationDetector instance for extracting temporal
+            and location information from queries.
         food_df: A DataFrame loaded with pre-classified food and category data, used for
             detecting food in user queries.
     """
@@ -56,6 +61,7 @@ class RestaurantSearch:
             self.df = pickle.load(f)
         self.model = SentenceTransformer(MODEL)
         self.tag_predictor = TagPredictor()
+        self.temporal_detector = TemporalLocationDetector()
 
         try:
             self.food_df = pd.read_csv("data/classified_food_names_clean.csv")
@@ -67,7 +73,6 @@ class RestaurantSearch:
             self.food_df = pd.DataFrame(columns=["food_name", "categories"])
 
         print(f"✓ Loaded {len(self.df)} restaurants")
-
 
     def detect_food_from_query(self, query) -> tuple[None | str, list[str], float]:
         """
@@ -118,18 +123,21 @@ class RestaurantSearch:
             print(f"🍽 Detected food: '{best_match}' ({best_score:.2f}) → {best_categories}")
             return best_match, best_categories, best_score
         else:
-            print("🍽 No food detected in query (regex).")
+            print("🍽 No food detected in query.")
             return None, [], 0.0
 
     def search(self, query, location=None, distinction=None, cuisine=None, price=None,
                limit=10, use_ml_tags=True) -> tuple[list, dict]:
         """
-        Hybrid search combining semantic similarity and ML tag prediction.
+        Hybrid search combining semantic similarity, ML tag prediction, temporal matching,
+        and location detection.
 
-        This method performs a detailed search by combining the semantic similarity
-        of a query with potential machine learning-predicted tags for more accurate
-        results. The final score for each result is calculated by integrating semantic
-        similarity, tag predictions, and optional food-related context.
+        This method performs a detailed search by combining multiple signals:
+        1. Semantic similarity via FAISS
+        2. ML-predicted tags matching
+        3. Food detection and category matching
+        4. Temporal matching (days, times, meal periods)
+        5. Location matching from query
 
         Args:
             query: A string representing the query text for the search.
@@ -144,20 +152,39 @@ class RestaurantSearch:
         Returns:
             A tuple containing:
             - A list of dictionaries, each representing search results with various
-              scores (final_score, semantic_score, tag_score, food_score), and other
-              related information (e.g., detected food, matched tags).
+              scores (final_score, semantic_score, tag_score, food_score, hours_score,
+              location_score), and other related information (e.g., detected food,
+              matched tags, temporal info).
             - A dictionary of predicted tags with their respective scores if 'use_ml_tags'
               is True.
         """
-        # """
-        # Hybrid search combining semantic similarity and ML tag prediction
-        #
-        # Final score = (semantic_score * SEMANTIC_WEIGHT) + (tag_score * TAG_WEIGHT)
-        # """
+        # Detect temporal and location information
+        temporal_info = self.temporal_detector.detect_all(query)
+        detected_days = temporal_info['days']
+        detected_times = temporal_info['times']
+        detected_meal_periods = temporal_info['meal_periods']
+        detected_locations = temporal_info['locations']
+
+        # Print detection results
+        if detected_days:
+            print(f"📅 Detected days: {detected_days}")
+        if detected_times:
+            print(f"🕐 Detected times: {[t.strftime('%H:%M') for t in detected_times]}")
+        if detected_meal_periods:
+            print(f"🍴 Detected meal periods: {detected_meal_periods}")
+        if detected_locations:
+            print(f"📍 Detected locations: {detected_locations}")
+
         df_filtered = self.df.copy()
 
         if location and location != "All":
             df_filtered = df_filtered[df_filtered['location'] == location]
+        # elif detected_locations:
+        #     # Try to match detected locations with restaurant locations
+        #     location_mask = df_filtered['location'].str.lower().apply(
+        #         lambda x: any(loc.lower() in str(x).lower() for loc in detected_locations)
+        #     )
+        #     df_filtered = df_filtered[location_mask]
 
         if distinction and distinction != "All":
             df_filtered = df_filtered[
@@ -228,10 +255,47 @@ class RestaurantSearch:
             cuisine_text = str(row.get("cuisine_type", "")).lower()
             if detected_food and food_categories and cuisine_text and any(
                     cat.lower() in cuisine_text for cat in food_categories):
-                food_score = 1
+                food_score = 1.0
 
-            # TODO - Add hours and locations
-            final_score = (semantic_score * SEMANTIC_WEIGHT) + (tag_score * TAG_WEIGHT) + (food_score * FOOD_WEIGHT)
+            hours_score = 0.0
+            hours_match = False
+            if detected_days or detected_times or detected_meal_periods:
+                opening_hours = row.get('opening_hours', 'N/A')
+                if opening_hours and opening_hours != 'N/A':
+                    if isinstance(opening_hours, str):
+                        import json
+                        try:
+                            opening_hours = json.loads(opening_hours.replace('""', '"'))
+                        except:
+                            opening_hours = None
+                    if opening_hours is dict:
+                        hours_match, hours_score = self.temporal_detector.check_restaurant_hours(
+                            opening_hours,
+                            detected_days,
+                            detected_times,
+                            detected_meal_periods
+                        )
+
+            # # Location score (if location detected in query)
+            # location_score = 0.0
+            # if detected_locations:
+            #     restaurant_location = str(row.get('location', '')).lower()
+            #     restaurant_address = str(row.get('address', '')).lower()
+            #
+            #     for detected_loc in detected_locations:
+            #         detected_loc_lower = detected_loc.lower()
+            #         if detected_loc_lower in restaurant_location or detected_loc_lower in restaurant_address:
+            #             location_score = 1.0
+            #             break
+
+            # Calculate final score
+            final_score = (
+                    (semantic_score * SEMANTIC_WEIGHT) +
+                    (tag_score * TAG_WEIGHT) +
+                    (food_score * FOOD_WEIGHT) +
+                    (hours_score * HOURS_WEIGHT)
+                    # (location_score * LOCATION_WEIGHT)
+            )
 
             results.append({
                 'idx': original_idx,
@@ -242,6 +306,15 @@ class RestaurantSearch:
                 'food_score': food_score,
                 'food_detected': detected_food,
                 'food_category': food_categories,
+                'hours_score': hours_score,
+                'hours_match': hours_match,
+                'temporal_info': {
+                    'days': detected_days,
+                    'times': [t.strftime('%H:%M') for t in detected_times],
+                    'meal_periods': detected_meal_periods
+                },
+                # 'location_score': location_score,
+                # 'detected_locations': detected_locations,
             })
 
         results.sort(key=lambda x: x['final_score'], reverse=True)

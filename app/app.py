@@ -262,7 +262,8 @@ class RestaurantSearchApp(App):
     def log_search_results(self, query, filters, results, predicted_tags=None):
         """
         Logs detailed search results into a CSV file for record-keeping and analytics purposes. This
-        includes timestamp, query details, filters applied, retrieved results, and predicted tags.
+        includes timestamp, query details, filters applied, retrieved results, predicted tags, and
+        temporal/location information.
 
         Args:
             query (str): The search query entered by the user.
@@ -270,7 +271,8 @@ class RestaurantSearchApp(App):
                 cuisine, or price.
             results (list): A list of dictionaries containing search result details. Each dictionary
                 includes attributes like 'idx', 'final_score', 'semantic_score', 'tag_score',
-                'food_detected', 'food_category', 'food_score', and 'matched_tags'.
+                'food_detected', 'food_category', 'food_score', 'hours_score', 'temporal_info',
+                'location_score', and 'matched_tags'.
             predicted_tags (dict, optional): A dictionary of predicted tags and their associated scores
                 (e.g., {"tag_name": score}). Defaults to None.
         """
@@ -304,8 +306,27 @@ class RestaurantSearchApp(App):
                         f"{tag}({score:.2f})" for tag, score in r['matched_tags'].items()
                     ]) if r['matched_tags'] else "None"
 
+                    temporal_str = ""
+                    if r.get('temporal_info'):
+                        temporal = r['temporal_info']
+                        parts = []
+                        if temporal.get('days'):
+                            parts.append(f"Days:{','.join(temporal['days'])}")
+                        if temporal.get('times'):
+                            parts.append(f"Times:{','.join(temporal['times'])}")
+                        if temporal.get('meal_periods'):
+                            parts.append(f"Meals:{','.join(temporal['meal_periods'])}")
+                        temporal_str = "|".join(parts)
+
+                    location_str = ""
+                    if r.get('detected_locations'):
+                        location_str = f"DetectedLoc:{','.join(r['detected_locations'])}"
+
                     details.append(
-                        f"{name} [Total={r['final_score']:.3f} | Sem={r['semantic_score']:.3f} | Tag={r['tag_score']:.3f} | Terms={r['food_detected']} | FoodCate={r['food_category']} | TermScore={r['food_score']}| Matched={matched}]"
+                        f"{name} [Total={r['final_score']:.3f} | Sem={r['semantic_score']:.3f} | "
+                        f"Tag={r['tag_score']:.3f} | Food={r['food_score']:.3f} | "
+                        f"Hours={r.get('hours_score', 0):.3f} | Loc={r.get('location_score', 0):.3f} | "
+                        f"Matched={matched} | {temporal_str} | {location_str}]"
                     )
 
                 details_str = " ; ".join(details)
@@ -324,7 +345,6 @@ class RestaurantSearchApp(App):
                 details_str
             ])
 
-
     def update_stats(self, message: str) -> None:
         stats_label = self.query_one("#stats-label", Label)
         stats_label.update(message)
@@ -337,4 +357,3 @@ class RestaurantSearchApp(App):
         self.query_one("#price-filter", Select).clear()
         self.query_one("#search-input").focus()
         self.update_stats("🔄 Filters reset")
-
