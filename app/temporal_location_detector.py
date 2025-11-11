@@ -1,30 +1,109 @@
-#!/usr/bin/env python3
-"""
-Temporal and Location Detection Module using spaCy
-
-Detects:
-- Days of the week (Monday, Tuesday, etc.)
-- Times (9am, 18:00, etc.)
-- Meal periods (lunch, dinner, breakfast, brunch)
-- Locations (Bangkok, Phuket, etc.)
-"""
-
 import re
 from datetime import datetime, time
 from typing import Dict, List, Tuple, Optional
 import spacy
 
-# Try to load spaCy model
 try:
     nlp = spacy.load("en_core_web_sm")
-    print("✓ spaCy model loaded successfully")
+    print("SpaCy model loaded successfully")
 except OSError:
-    print("⚠️  spaCy model not found. Installing...")
+    print("spaCy model not found. Installing...")
     import subprocess
 
     subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
 
+
+def check_days(detected_days: list[str], opening_hours: dict[str, str], detected_times: list[time], detected_meal_periods: list[str], total_checks: int = 0, day_matched: int = 0):
+    """
+    Checks the given detected days against the provided opening hours to determine matches
+    and accumulate total checks and matched days.
+
+    This function evaluates if the provided detected days can be matched with the opening
+    hours under the conditions where no detected times or meal periods are given. It
+    increments the count for the total checks and, when a match is found, the day matched
+    count is updated. A match occurs if the day's opening hours are not marked as 'closed'
+    or 'n/a'.
+
+    Args:
+        detected_days (list[str]): List of detected days to be checked.
+        opening_hours (dict[str, str]): Dictionary mapping days to their opening hours.
+        detected_times (list[time]): List of times detected, which must be empty for this
+            function to proceed with checking.
+        detected_meal_periods (list[str]): List of meal periods detected, which must be
+            empty for this function to proceed with checking.
+        total_checks (int): Counter for the total number of checks performed. Defaults to 0.
+        day_matched (int): Counter for the number of days matched. Defaults to 0.
+
+    Returns:
+        tuple: A tuple containing two integers:
+            - The total number of checks performed.
+            - The number of days matched.
+    """
+    if detected_days and not detected_times and not detected_meal_periods:
+        total_checks += len(detected_days)
+        for day in detected_days:
+            if day in opening_hours:
+                hours_str = opening_hours[day]
+                if hours_str and hours_str.lower() not in ['closed', 'n/a']:
+                    print('day matched')
+                    day_matched += 1
+    return total_checks, day_matched
+
+def check_times(detected_times, opening_hours, detected_days, total_checks,
+                day_matched):
+    """
+    Checks if the detected times fall within the opening hours for the specified days.
+
+    This function iterates over the given detected times and checks if they fall
+    within the specified opening hours for each day. It handles cases where
+    opening hours are marked as 'closed' or 'n/a', and only evaluates days that
+    exist within the opening hours. Days can either be explicitly provided in
+    detected_days or default to all days in the opening_hours dictionary.
+    The function increments the total number of checks performed and the count
+    of times a match is found.
+
+    Args:
+        detected_times (list[datetime.time]): A list of detected time instances
+            to be checked against opening hours.
+        opening_hours (dict[str, str]): A dictionary mapping days of the week
+            to their respective opening hours. Opening hours should be
+            formatted as 'HH:MM-HH:MM'. A value of 'closed' or 'n/a' indicates
+            the establishment is not open on that day.
+        detected_days (list[str] | None): An optional list of days of the week
+            to check. If None, checks all days in the opening_hours dictionary.
+        total_checks (int): A counter for the total number of checks performed
+            across all detected times and days.
+        day_matched (int): A counter tracking the number of times a detected
+            time falls within the specified opening hours.
+
+    Returns:
+        tuple[int, int]: A tuple containing the updated values of total_checks
+            and day_matched. The first element (int) is the updated total_checks,
+            and the second element (int) is the updated day_matched.
+    """
+    for detected_time in detected_times:
+        total_checks += 1
+        days_to_check = detected_days if detected_days else opening_hours.keys()
+        for day in days_to_check:
+            if day not in opening_hours:
+                continue
+            hours_str = opening_hours[day]
+            if not hours_str or hours_str.lower() in ['closed', 'n/a']:
+                continue
+            if '-' in hours_str:
+                try:
+                    start_str, end_str = hours_str.split('-')
+                    start_hour, start_min = map(int, start_str.split(':'))
+                    end_hour, end_min = map(int, end_str.split(':'))
+                    start_time = time(start_hour, start_min)
+                    end_time = time(end_hour, end_min)
+                    if start_time <= detected_time <= end_time:
+                        day_matched += 1
+                        break
+                except:
+                    continue
+    return total_checks, day_matched
 
 class TemporalLocationDetector:
     """
@@ -33,7 +112,6 @@ class TemporalLocationDetector:
     Uses spaCy NER for location detection and pattern matching for temporal expressions.
     """
 
-    # Day name mappings
     DAYS = {
         'monday': 'Monday', 'mon': 'Monday',
         'tuesday': 'Tuesday', 'tue': 'Tuesday', 'tues': 'Tuesday',
@@ -44,7 +122,6 @@ class TemporalLocationDetector:
         'sunday': 'Sunday', 'sun': 'Sunday',
     }
 
-    # Meal period time ranges
     MEAL_PERIODS = {
         'breakfast': (time(6, 0), time(11, 0)),
         'brunch': (time(10, 0), time(14, 0)),
@@ -53,7 +130,6 @@ class TemporalLocationDetector:
         'late night': (time(22, 0), time(2, 0)),
     }
 
-    # Additional meal period keywords
     MEAL_KEYWORDS = {
         'breakfast': ['breakfast', 'morning'],
         'brunch': ['brunch'],
@@ -84,14 +160,12 @@ class TemporalLocationDetector:
                 if day not in detected_days:
                     detected_days.append(day)
 
-        # Also detect "weekend", "weekday", "weekdays", "weekends"
         if re.search(r'\bweekend\b', query_lower):
             detected_days.extend(['Saturday', 'Sunday'])
 
         if re.search(r'\bweekday\b', query_lower):
             detected_days.extend(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
-        # Remove duplicates while preserving order
         seen = set()
         result = []
         for day in detected_days:
@@ -118,7 +192,6 @@ class TemporalLocationDetector:
         """
         times = []
 
-        # Pattern 1: 9am, 10pm
         pattern1 = r'\b(\d{1,2})\s*([ap]m)\b'
         for match in re.finditer(pattern1, query.lower()):
             hour = int(match.group(1))
@@ -132,7 +205,6 @@ class TemporalLocationDetector:
             if 0 <= hour < 24:
                 times.append(time(hour, 0))
 
-        # Pattern 2: 9:00, 18:00
         pattern2 = r'\b(\d{1,2}):(\d{2})\b'
         for match in re.finditer(pattern2, query):
             hour = int(match.group(1))
@@ -141,7 +213,6 @@ class TemporalLocationDetector:
             if 0 <= hour < 24 and 0 <= minute < 60:
                 times.append(time(hour, minute))
 
-        # Pattern 3: 9:30am, 6:30pm
         pattern3 = r'\b(\d{1,2}):(\d{2})\s*([ap]m)\b'
         for match in re.finditer(pattern3, query.lower()):
             hour = int(match.group(1))
@@ -194,7 +265,7 @@ class TemporalLocationDetector:
         locations = []
 
         for ent in doc.ents:
-            if ent.label_ in ['GPE', 'LOC', 'FAC']:  # Geopolitical entity, Location, Facility
+            if ent.label_ in ['GPE', 'LOC', 'FAC']:
                 locations.append(ent.text)
 
         return locations
@@ -244,7 +315,6 @@ class TemporalLocationDetector:
         if not opening_hours or opening_hours == 'N/A':
             return False, 0.0
 
-        # Parse opening_hours if it's a string
         if isinstance(opening_hours, str):
             try:
                 import json
@@ -252,149 +322,43 @@ class TemporalLocationDetector:
             except:
                 return False, 0.0
 
-        total_checks = 0
-        matched_checks = 0
-
-        # Check days
-        if detected_days:
-            total_checks += len(detected_days)
-            for day in detected_days:
-                if day in opening_hours:
-                    hours_str = opening_hours[day]
-                    if hours_str and hours_str.lower() not in ['closed', 'n/a']:
-                        matched_checks += 1
-
-        # Check times
+        total_checks, day_matched = check_days(detected_days, opening_hours, detected_times, detected_meal_periods)
         if detected_times:
-            for detected_time in detected_times:
-                total_checks += 1
-
-                # Check all days or specific detected days
-                days_to_check = detected_days if detected_days else opening_hours.keys()
-
-                for day in days_to_check:
-                    if day not in opening_hours:
-                        continue
-
-                    hours_str = opening_hours[day]
-                    if not hours_str or hours_str.lower() in ['closed', 'n/a']:
-                        continue
-
-                    # Parse time range: "09:00-21:00"
-                    if '-' in hours_str:
-                        try:
-                            start_str, end_str = hours_str.split('-')
-                            start_hour, start_min = map(int, start_str.split(':'))
-                            end_hour, end_min = map(int, end_str.split(':'))
-
-                            start_time = time(start_hour, start_min)
-                            end_time = time(end_hour, end_min)
-
-                            # Check if detected time is within range
-                            if start_time <= detected_time <= end_time:
-                                matched_checks += 1
-                                break
-                        except:
-                            continue
-
-        # Check meal periods
-        if detected_meal_periods:
-            for meal_period in detected_meal_periods:
-                total_checks += 1
-
-                if meal_period not in self.MEAL_PERIODS:
-                    continue
-
-                meal_start, meal_end = self.MEAL_PERIODS[meal_period]
-
-                # Check if restaurant is open during this meal period
-                days_to_check = detected_days if detected_days else opening_hours.keys()
-
-                for day in days_to_check:
-                    if day not in opening_hours:
-                        continue
-
-                    hours_str = opening_hours[day]
-                    if not hours_str or hours_str.lower() in ['closed', 'n/a']:
-                        continue
-
-                    # Parse time range
-                    if '-' in hours_str:
-                        try:
-                            start_str, end_str = hours_str.split('-')
-                            start_hour, start_min = map(int, start_str.split(':'))
-                            end_hour, end_min = map(int, end_str.split(':'))
-
-                            rest_start = time(start_hour, start_min)
-                            rest_end = time(end_hour, end_min)
-
-                            # Check if meal period overlaps with restaurant hours
-                            if not (meal_end < rest_start or meal_start > rest_end):
-                                matched_checks += 1
-                                break
-                        except:
-                            continue
-
+            total_checks, day_matched = check_times(detected_times, opening_hours, detected_days, total_checks, day_matched)
+        if detected_meal_periods and not detected_times:
+            total_checks, day_matched = self.check_periods(detected_meal_periods, opening_hours, detected_days, total_checks, day_matched)
         if total_checks == 0:
             return False, 0.0
+        confidence = day_matched / total_checks
+        return confidence > 0.5, confidence
 
-        confidence = matched_checks / total_checks
-        is_match = confidence > 0.5  # At least 50% of checks must pass
-
-        return is_match, confidence
+    @staticmethod
 
 
-if __name__ == "__main__":
-    detector = TemporalLocationDetector()
+    def check_periods(self, detected_meal_periods, opening_hours, detected_days, total_checks, day_matched):
+        for meal_period in detected_meal_periods:
+            total_checks += 1
+            if meal_period not in self.MEAL_PERIODS:
+                continue
+            meal_start, meal_end = self.MEAL_PERIODS[meal_period]
+            days_to_check = detected_days if detected_days else opening_hours.keys()
+            for day in days_to_check:
+                if day not in opening_hours:
+                    continue
+                hours_str = opening_hours[day]
+                if not hours_str or hours_str.lower() in ['closed', 'n/a']:
+                    continue
+                if '-' in hours_str:
+                    try:
+                        start_str, end_str = hours_str.split('-')
+                        start_hour, start_min = map(int, start_str.split(':'))
+                        end_hour, end_min = map(int, end_str.split(':'))
 
-    test_queries = [
-        "Find me a lunch spot in Bangkok",
-        "Dinner reservations for Friday at 7pm",
-        "Open on Monday morning around 9am",
-        "Weekend brunch in Phuket",
-        "Late night dinner in Chiang Mai",
-        "Looking for breakfast places on Tuesday",
-    ]
-
-    print("=" * 70)
-    print("TEMPORAL AND LOCATION DETECTION EXAMPLES")
-    print("=" * 70)
-
-    for query in test_queries:
-        print(f"\nQuery: '{query}'")
-        result = detector.detect_all(query)
-        print(f"  Days: {result['days']}")
-        print(f"  Times: {[t.strftime('%H:%M') for t in result['times']]}")
-        print(f"  Meal periods: {result['meal_periods']}")
-        print(f"  Locations: {result['locations']}")
-
-    print("\n" + "=" * 70)
-    print("OPENING HOURS MATCHING TEST")
-    print("=" * 70)
-
-    sample_hours = {
-        "Monday": "09:00-21:00",
-        "Tuesday": "09:00-21:00",
-        "Wednesday": "09:00-21:00",
-        "Thursday": "09:00-21:00",
-        "Friday": "09:00-21:00",
-        "Saturday": "09:00-22:00",
-        "Sunday": "09:00-21:00"
-    }
-
-    test_cases = [
-        ("lunch on Monday", sample_hours),
-        ("dinner at 8pm Friday", sample_hours),
-        ("breakfast on Sunday", sample_hours),
-    ]
-
-    for query, hours in test_cases:
-        print(f"\nQuery: '{query}'")
-        info = detector.detect_all(query)
-        is_match, score = detector.check_restaurant_hours(
-            hours,
-            info['days'],
-            info['times'],
-            info['meal_periods']
-        )
-        print(f"  Match: {is_match}, Score: {score:.2f}")
+                        rest_start = time(start_hour, start_min)
+                        rest_end = time(end_hour, end_min)
+                        if not (meal_end < rest_start or meal_start > rest_end):
+                            day_matched += 1
+                            break
+                    except:
+                        continue
+        return total_checks, day_matched
