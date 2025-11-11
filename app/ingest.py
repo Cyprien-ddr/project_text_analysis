@@ -140,8 +140,6 @@ def main():
 
         print_stats(df)
 
-        print("\nNext step:\n$ python search_faiss.py 'french restaurant'")
-
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
