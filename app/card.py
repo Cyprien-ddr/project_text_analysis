@@ -8,7 +8,24 @@ from textual.widgets import Static
 
 
 class RestaurantCard(Static):
+    """
+    Represents a visual display card for restaurant information.
 
+    This class is responsible for creating detailed and visually styled information cards
+    for restaurants. The cards include various details such as rank, name, awards, location,
+    cuisine type, pricing, description, predicted tags, contact information, and score metrics.
+
+    Attributes:
+        restaurant (dict): A dictionary of restaurant data containing metadata such as name,
+            location, cuisine details, pricing, etc.
+        rank (int): The ranking position of the restaurant.
+        score (float): The overall score assigned to the restaurant based on various factors.
+        semantic_score (float, optional): A sub-score measuring semantic relevance.
+        tag_score (float, optional): A sub-score representing the relevance of matched tags.
+        matched_tags (dict, optional): A dictionary of predicted tags with associated relevance scores.
+        food_detected (bool, optional): Indicates if food-related features were detected.
+        food_score (float, optional): A sub-score representing food-related attributes.
+    """
     def __init__(self, restaurant_data, rank, score, semantic_score=None, tag_score=None, matched_tags=None, food_detected=None, food_score=None):
         super().__init__()
         self.restaurant = restaurant_data
@@ -21,6 +38,18 @@ class RestaurantCard(Static):
         self.food_score = food_score
 
     def compose(self) -> ComposeResult:
+        """
+        Generates a styled information card about a restaurant.
+
+        This method constructs a composable result object to display detailed information about a
+        restaurant based on its attributes such as rank, name, distinctions (e.g., Michelin stars),
+        location, cuisine, pricing, description, tags, contact details, and associated scores.
+        The output is visually enhanced with symbols and icons for better readability.
+
+        Returns:
+            ComposeResult: A composable result instance representing the formatted content of the
+                restaurant's details, styled for display purposes.
+        """
         row = self.restaurant
 
         title = f"{self.rank}. {row['name']}"
@@ -67,7 +96,6 @@ class RestaurantCard(Static):
             contact_parts.append(f"🌐 {row['website']}")
         contact_line = " • ".join(contact_parts)
 
-        # Enhanced score display
         score_parts = [f"Total: {self.score:.3f}"]
         if self.semantic_score is not None:
             score_parts.append(f"Semantic: {self.semantic_score:.3f}")

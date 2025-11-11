@@ -24,6 +24,28 @@ FOOD_WEIGHT = 0.4
 
 
 class RestaurantSearch:
+    """
+    Facilitates restaurant search using combined approaches of semantic similarity, machine
+    learning tags, and contextual data about food items.
+
+    This class is designed to perform detailed restaurant searches by integrating semantic
+    search methodologies, machine learning-predicted tags, and auxiliary datasets like
+    classified food categories. It provides two key functionalities: detecting food in a
+    user query and executing a hybrid search that refines results based on given filters
+    (e.g., location, cuisine, price). It allows users to retrieve precisely ranked results
+    tailored to their preferences.
+
+    Attributes:
+        index: A FAISS index loaded for performing similarity searches on restaurant
+            embeddings.
+        df: A DataFrame containing the restaurant data, used as the search database.
+        model: An instantiated SentenceTransformer model for embedding queries or text
+            inputs to match against restaurant embeddings in the index.
+        tag_predictor: A helper class for predicting tags from queries, used to refine
+            search results.
+        food_df: A DataFrame loaded with pre-classified food and category data, used for
+            detecting food in user queries.
+    """
 
     def __init__(self):
         if not os.path.exists(INDEX_FILE) or not os.path.exists(DATA_FILE):
@@ -47,10 +69,26 @@ class RestaurantSearch:
         print(f"✓ Loaded {len(self.df)} restaurants")
 
 
-    def detect_food_from_query(self, query):
+    def detect_food_from_query(self, query) -> tuple[None | str, list[str], float]:
         """
-        Detect a food name inside the query using regex / fuzzy string match.
-        Returns (food_name, categories, confidence_score)
+        Detect a food name inside a query string using regex or fuzzy string matching.
+
+        Evaluates potential matches against a dataset and returns the best match, the
+        associated categories, and a confidence score based on match quality. The
+        process includes direct keyword matching via regex and fuzzy comparison using
+        a similarity ratio. Specially tuned to return results only if the confidence
+        score surpasses a threshold, ensuring relevance and accuracy of detection.
+
+        Args:
+            query (str): The input string where the function searches for potential
+                         food items.
+
+        Returns:
+            tuple[str, list[str], float]: A tuple consisting of the detected food name
+                                          (`str`), a list of associated categories
+                                          (`list`), and the confidence score (`float`).
+                                          If no match is found, returns (`None`, `[]`,
+                                          `0.0`).
         """
         if self.food_df.empty:
             return None, [], 0.0
@@ -65,15 +103,12 @@ class RestaurantSearch:
             food = str(row["food_name"]).strip().lower()
             categories = [c.strip() for c in str(row["categories"]).split(";") if c.strip()]
 
-            # ✅ 1. Regex match (exact substring, word boundaries)
             if re.search(rf"\b{re.escape(food)}\b", query_lower):
                 score = 1.0
             else:
-                # ✅ 2. Fuzzy match fallback (partial ratio)
                 ratio = SequenceMatcher(None, food, query_lower).ratio()
                 score = ratio
 
-            # Garde le meilleur match au-dessus d’un seuil
             if score > best_score and score >= 0.45:
                 best_match = food
                 best_categories = categories
@@ -87,13 +122,38 @@ class RestaurantSearch:
             return None, [], 0.0
 
     def search(self, query, location=None, distinction=None, cuisine=None, price=None,
-               limit=10, use_ml_tags=True):
+               limit=10, use_ml_tags=True) -> tuple[list, dict]:
         """
-        Hybrid search combining semantic similarity and ML tag prediction
+        Hybrid search combining semantic similarity and ML tag prediction.
 
-        Final score = (semantic_score * SEMANTIC_WEIGHT) + (tag_score * TAG_WEIGHT)
+        This method performs a detailed search by combining the semantic similarity
+        of a query with potential machine learning-predicted tags for more accurate
+        results. The final score for each result is calculated by integrating semantic
+        similarity, tag predictions, and optional food-related context.
+
+        Args:
+            query: A string representing the query text for the search.
+            location: Optional location filter for narrowing down the search results.
+            distinction: Optional string to filter by distinction (e.g., Michelin star).
+            cuisine: Optional string specifying cuisine type to filter results.
+            price: Optional price level filter for the search.
+            limit: Maximum number of search results to return (default is 10).
+            use_ml_tags: Boolean indicating whether to use ML-predicted tags in the
+                scoring.
+
+        Returns:
+            A tuple containing:
+            - A list of dictionaries, each representing search results with various
+              scores (final_score, semantic_score, tag_score, food_score), and other
+              related information (e.g., detected food, matched tags).
+            - A dictionary of predicted tags with their respective scores if 'use_ml_tags'
+              is True.
         """
-        # Step 1: Apply filters
+        # """
+        # Hybrid search combining semantic similarity and ML tag prediction
+        #
+        # Final score = (semantic_score * SEMANTIC_WEIGHT) + (tag_score * TAG_WEIGHT)
+        # """
         df_filtered = self.df.copy()
 
         if location and location != "All":
@@ -113,7 +173,7 @@ class RestaurantSearch:
             df_filtered = df_filtered[df_filtered['price'] == price]
 
         if len(df_filtered) == 0:
-            return []
+            return [], {}
 
         filtered_indices = df_filtered.index.tolist()
 
@@ -170,7 +230,7 @@ class RestaurantSearch:
                     cat.lower() in cuisine_text for cat in food_categories):
                 food_score = 1
 
-            # TODO - Add hours
+            # TODO - Add hours and locations
             final_score = (semantic_score * SEMANTIC_WEIGHT) + (tag_score * TAG_WEIGHT) + (food_score * FOOD_WEIGHT)
 
             results.append({
@@ -188,6 +248,20 @@ class RestaurantSearch:
         return results[:limit], predicted_tags
 
     def get_filter_options(self):
+        """
+        Retrieves various filter options based on restaurant attributes.
+
+        The method extracts unique values for locations, cuisines, prices,
+        and predefined distinctions. It ensures that the options are sorted
+        and formatted for utilization in filtering processes. Each category
+        has an 'All' option added for comprehensive selection criteria.
+
+        Returns:
+            dict: A dictionary containing filter options for each category:
+            'locations', 'cuisines', 'prices', and 'distinctions'. Each option
+            is represented as a list of tuples, where each tuple contains a
+            display value and the corresponding value for filtering purposes.
+        """
         locations = ["All"] + sorted([
             loc for loc in self.df['location'].unique() if pd.notna(loc)
         ])

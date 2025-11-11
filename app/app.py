@@ -18,6 +18,25 @@ from search import RestaurantSearch
 
 
 class RestaurantSearchApp(App):
+    """
+    The RestaurantSearchApp class is a graphical user interface (GUI) application for
+    searching Michelin-rated restaurants. Users can perform searches based on various
+    filters including location, awards, cuisine, and price. The application is designed
+    to facilitate intuitive and efficient restaurant discovery. It provides features like
+    search input, selectable filters, a display of search results, and detailed logging
+    for search statistics.
+
+    The class integrates dynamic UI components for user interactions, handles reactive
+    elements to reflect state changes, and provides loading indicators for asynchronous
+    operations.
+
+    Attributes:
+        CSS (str): The CSS string for styling the GUI elements of the application.
+        TITLE (str): The title of the application displayed in the header.
+        BINDINGS (list): The keyboard shortcuts bindings for the application with actions
+            like quitting or resetting.
+        results_count (int): A reactive attribute indicating the number of search results.
+    """
     CSS = """
     Screen {
         background: $surface;
@@ -96,6 +115,19 @@ class RestaurantSearchApp(App):
             sys.exit(1)
 
     def compose(self) -> ComposeResult:
+        """
+        Constructs and yields components required to display a user interface with search
+        functionality, filters, and results.
+
+        The composed interface includes:
+        - A header section.
+        - A search container with a database summary, input field, filter options, and a search button.
+        - A scrollable container to display search results.
+        - A footer section along with a stats container to display search status.
+
+        Returns:
+            ComposeResult: A generator that yields interface components in sequence.
+        """
         yield Header()
 
         with Container(id="search-container"):
@@ -143,6 +175,22 @@ class RestaurantSearchApp(App):
     @on(Input.Submitted, "#search-input")
     @on(Button.Pressed, "#search-button")
     async def perform_search(self) -> None:
+        """
+        Handles the search functionality in the application. Triggered when either the search input is submitted
+        or the search button is pressed. Retrieves and applies user-specified filters, executes the search query,
+        and displays the results or an appropriate message.
+
+        Args:
+            None
+
+        Raises:
+            Exception: If an error occurs during the search process it gracefully
+            handles the exception with an appropriate error message being displayed
+            for the user.
+
+        Returns:
+            None
+        """
         query_input = self.query_one("#search-input", Input)
         query = query_input.value.strip()
 
@@ -213,8 +261,19 @@ class RestaurantSearchApp(App):
 
     def log_search_results(self, query, filters, results, predicted_tags=None):
         """
-               Log detailed search results with scores, matched tags, and user input tags.
-               """
+        Logs detailed search results into a CSV file for record-keeping and analytics purposes. This
+        includes timestamp, query details, filters applied, retrieved results, and predicted tags.
+
+        Args:
+            query (str): The search query entered by the user.
+            filters (dict): A dictionary containing applied filters such as location, distinction,
+                cuisine, or price.
+            results (list): A list of dictionaries containing search result details. Each dictionary
+                includes attributes like 'idx', 'final_score', 'semantic_score', 'tag_score',
+                'food_detected', 'food_category', 'food_score', and 'matched_tags'.
+            predicted_tags (dict, optional): A dictionary of predicted tags and their associated scores
+                (e.g., {"tag_name": score}). Defaults to None.
+        """
         log_file = "search_logs_detailed.csv"
         file_exists = os.path.exists(log_file)
 
@@ -229,7 +288,6 @@ class RestaurantSearchApp(App):
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Format predicted tags from input
             if predicted_tags:
                 predicted_tags_str = ", ".join([
                     f"{tag}({score:.2f})" for tag, score in predicted_tags.items()
@@ -237,7 +295,6 @@ class RestaurantSearchApp(App):
             else:
                 predicted_tags_str = "None"
 
-            # Format result details
             if results:
                 details = []
                 for r in results:
