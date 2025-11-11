@@ -21,10 +21,12 @@ class RestaurantSearchApp(App):
     """
     The RestaurantSearchApp class is a graphical user interface (GUI) application for
     searching Michelin-rated restaurants. Users can perform searches based on various
-    filters including location, awards, cuisine, and price. The application is designed
-    to facilitate intuitive and efficient restaurant discovery. It provides features like
-    search input, selectable filters, a display of search results, and detailed logging
-    for search statistics.
+    filters including location, awards, cuisine, and price. The application supports
+    temporal queries (days, times, meal periods) and location detection using spaCy.
+
+    The application is designed to facilitate intuitive and efficient restaurant discovery.
+    It provides features like search input, selectable filters, temporal/location matching,
+    a display of search results, and detailed logging for search statistics.
 
     The class integrates dynamic UI components for user interactions, handles reactive
     elements to reflect state changes, and provides loading indicators for asynchronous
@@ -229,7 +231,6 @@ class RestaurantSearchApp(App):
                 predicted_tags=predicted_tags,
             )
 
-
             await results_container.remove_children()
 
             if results:
@@ -244,6 +245,11 @@ class RestaurantSearchApp(App):
                         matched_tags=result['matched_tags'],
                         food_detected=result.get('food_detected'),
                         food_score=result.get('food_score'),
+                        hours_score=result.get('hours_score'),
+                        hours_match=result.get('hours_match'),
+                        temporal_info=result.get('temporal_info'),
+                        # location_score=result.get('location_score'),
+                        # detected_locations=result.get('detected_locations'),
                     )
                     await results_container.mount(card)
 

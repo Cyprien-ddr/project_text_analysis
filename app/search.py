@@ -1,3 +1,4 @@
+import ast
 import re
 import os
 import sys
@@ -257,38 +258,30 @@ class RestaurantSearch:
                     cat.lower() in cuisine_text for cat in food_categories):
                 food_score = 1.0
 
-            hours_score = 0.0
+
+            hours_score = -1.0
             hours_match = False
             if detected_days or detected_times or detected_meal_periods:
                 opening_hours = row.get('opening_hours', 'N/A')
                 if opening_hours and opening_hours != 'N/A':
-                    if isinstance(opening_hours, str):
-                        import json
-                        try:
-                            opening_hours = json.loads(opening_hours.replace('""', '"'))
-                        except:
-                            opening_hours = None
-                    if opening_hours is dict:
+                    try :
+                        opening_hours = ast.literal_eval(opening_hours)
+                    except:
+                        if isinstance(opening_hours, str):
+                            import json
+                            try:
+                                opening_hours = json.loads(opening_hours.replace('""', '"'))
+                            except:
+                                opening_hours = None
+                    if isinstance(opening_hours, dict):
                         hours_match, hours_score = self.temporal_detector.check_restaurant_hours(
                             opening_hours,
                             detected_days,
                             detected_times,
                             detected_meal_periods
                         )
+                        hours_score = 1 if hours_match == True else -1
 
-            # # Location score (if location detected in query)
-            # location_score = 0.0
-            # if detected_locations:
-            #     restaurant_location = str(row.get('location', '')).lower()
-            #     restaurant_address = str(row.get('address', '')).lower()
-            #
-            #     for detected_loc in detected_locations:
-            #         detected_loc_lower = detected_loc.lower()
-            #         if detected_loc_lower in restaurant_location or detected_loc_lower in restaurant_address:
-            #             location_score = 1.0
-            #             break
-
-            # Calculate final score
             final_score = (
                     (semantic_score * SEMANTIC_WEIGHT) +
                     (tag_score * TAG_WEIGHT) +

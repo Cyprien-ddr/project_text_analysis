@@ -2,6 +2,7 @@ import re
 from datetime import datetime, time
 from typing import Dict, List, Tuple, Optional
 import spacy
+import pandas as pd
 
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -332,9 +333,6 @@ class TemporalLocationDetector:
         confidence = day_matched / total_checks
         return confidence > 0.5, confidence
 
-    @staticmethod
-
-
     def check_periods(self, detected_meal_periods, opening_hours, detected_days, total_checks, day_matched):
         for meal_period in detected_meal_periods:
             total_checks += 1
@@ -362,3 +360,119 @@ class TemporalLocationDetector:
                     except:
                         continue
         return total_checks, day_matched
+
+
+
+import ast
+
+if __name__ == "__main__":
+    # detector = TemporalLocationDetector()
+    #
+    # test_queries = [
+    #     "Find me a lunch spot in Bangkok",
+    #     "Dinner reservations for Friday at 7pm",
+    #     "Open on Monday morning around 9am",
+    #     "Weekend brunch in Phuket",
+    #     "Late night dinner in Chiang Mai",
+    #     "Looking for breakfast places on Tuesday",
+    # ]
+    #
+    # print("=" * 70)
+    # print("TEMPORAL AND LOCATION DETECTION EXAMPLES")
+    # print("=" * 70)
+    #
+    # for query in test_queries:
+    #     print(f"\nQuery: '{query}'")
+    #     result = detector.detect_all(query)
+    #     print(f"  Days: {result['days']}")
+    #     print(f"  Times: {[t.strftime('%H:%M') for t in result['times']]}")
+    #     print(f"  Meal periods: {result['meal_periods']}")
+    #     print(f"  Locations: {result['locations']}")
+    #
+    # print("\n" + "=" * 70)
+    # print("OPENING HOURS MATCHING TEST")
+    # print("=" * 70)
+    #
+    # sample_hours = {
+    #     "Monday": "09:00-21:00",
+    #     "Tuesday": "09:00-21:00",
+    #     "Wednesday": "09:00-21:00",
+    #     "Thursday": "09:00-21:00",
+    #     "Friday": "09:00-21:00",
+    #     "Saturday": "12:00-22:00",
+    #     "Sunday": "closed"
+    # }
+    #
+    # test_cases = [
+    #     ("lunch on Monday", sample_hours),
+    #     ("dinner at 8pm Friday", sample_hours),
+    #     ("breakfast on Sunday", sample_hours),
+    #     ("breakfast on Sat", sample_hours),
+    # ]
+    #
+    # for query, hours in test_cases:
+    #     print(f"\nQuery: '{query}'")
+    #     info = detector.detect_all(query)
+    #     is_match, score = detector.check_restaurant_hours(
+    #         hours,
+    #         info['days'],
+    #         info['times'],
+    #         info['meal_periods']
+    #     )
+    #     print(f"  Match: {is_match}, Score: {score:.2f}")
+
+    temporal_detector = TemporalLocationDetector()
+
+    temporal_info = temporal_detector.detect_all("regional rustic and immersive thai food tuesday dinner")
+    detected_days = temporal_info['days']
+    detected_times = temporal_info['times']
+    detected_meal_periods = temporal_info['meal_periods']
+    detected_locations = temporal_info['locations']
+    hours_score = -1.0
+    hours_match = False
+    df = pd.read_csv('./data/michelin_thailand_details.csv')
+
+    # Trouver la ligne où name == 'AKKEE'
+    akkee_row = df[df['name'] == 'AKKEE']
+
+    # Extraire opening_hours (première occurrence si plusieurs)
+    opening_hours = None
+    if not akkee_row.empty:
+        opening_hours = akkee_row.iloc[0]['opening_hours']
+
+    print(opening_hours)
+    print(type(opening_hours))
+    opening_hours = ast.literal_eval(opening_hours)
+    print(opening_hours)
+    print(type(opening_hours))
+    if detected_days or detected_times or detected_meal_periods:
+        # opening_hours = row.get('opening_hours', 'N/A')
+        # opening_hours = {""Monday"": ""17:30-23:00"", ""Tuesday"": ""17:30-23:00"", ""Wednesday"": ""closed"", ""Thursday"": ""17:30-23:00"", ""Friday"": ""17:30-23:00"", ""Saturday"": ""12:00-15:00, 17:30-23:00"", ""Sunday"": ""12:00-15:00, 17:30-23:00""}
+        if opening_hours and opening_hours != 'N/A':
+            print("in")
+            if isinstance(opening_hours, str):
+                print("str")
+                import json
+
+                try:
+                    opening_hours = json.loads(opening_hours.replace('""', '"'))
+                except:
+                    opening_hours = None
+            # if opening_hours is dict:
+            if isinstance(opening_hours, dict):
+                print("dict")
+                print(f'opening_hours: {opening_hours}')
+                hours_match, hours_score = temporal_detector.check_restaurant_hours(
+                    opening_hours,
+                    detected_days,
+                    detected_times,
+                    detected_meal_periods
+                )
+                hours_score = 1 if hours_match == True else -1
+            else:
+                print(f"else: {type(opening_hours)}")
+    print(hours_score, hours_match)
+    print(detected_days, detected_times, detected_meal_periods, detected_locations)
+    print(
+        f"Is match: {hours_match}, Score: {hours_score:.2f}"
+    )
