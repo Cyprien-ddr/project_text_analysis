@@ -248,8 +248,8 @@ class RestaurantSearchApp(App):
                         hours_score=result.get('hours_score'),
                         hours_match=result.get('hours_match'),
                         temporal_info=result.get('temporal_info'),
-                        # location_score=result.get('location_score'),
-                        # detected_locations=result.get('detected_locations'),
+                        location_score=result.get('location_score'),
+                        detected_locations=result.get('detected_locations'),
                     )
                     await results_container.mount(card)
 
@@ -363,3 +363,12 @@ class RestaurantSearchApp(App):
         self.query_one("#price-filter", Select).clear()
         self.query_one("#search-input").focus()
         self.update_stats("🔄 Filters reset")
+
+
+def main():
+    app = RestaurantSearchApp()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

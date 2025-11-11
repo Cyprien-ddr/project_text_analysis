@@ -26,6 +26,12 @@ LOCATION_WEIGHT = 0.8
 FOOD_WEIGHT = 0.4
 
 
+def compute_score(row, detected_locations):
+    loc_text = str(row['location']).lower()
+    city_text = str(row['city']).lower()
+    return 1 if any(loc.lower() in (loc_text + ' ' + city_text) for loc in detected_locations) else 0
+
+
 class RestaurantSearch:
     """
     Facilitates restaurant search using combined approaches of semantic similarity, machine
@@ -177,15 +183,11 @@ class RestaurantSearch:
             print(f"📍 Detected locations: {detected_locations}")
 
         df_filtered = self.df.copy()
-
+        regex_city = None
         if location and location != "All":
             df_filtered = df_filtered[df_filtered['location'] == location]
-        # elif detected_locations:
-        #     # Try to match detected locations with restaurant locations
-        #     location_mask = df_filtered['location'].str.lower().apply(
-        #         lambda x: any(loc.lower() in str(x).lower() for loc in detected_locations)
-        #     )
-        #     df_filtered = df_filtered[location_mask]
+        elif detected_locations:
+            regex_city = r",\s*([^,]+),\s*\d{3,10},\s*[^,]+$"
 
         if distinction and distinction != "All":
             df_filtered = df_filtered[
@@ -259,7 +261,7 @@ class RestaurantSearch:
                 food_score = 1.0
 
 
-            hours_score = -1.0
+            hours_score = 0.
             hours_match = False
             if detected_days or detected_times or detected_meal_periods:
                 opening_hours = row.get('opening_hours', 'N/A')
@@ -282,12 +284,28 @@ class RestaurantSearch:
                         )
                         hours_score = 1 if hours_match == True else -1
 
+            location_score = 0
+            if detected_locations:
+                adresse = str(row.get('address', ''))
+                match = re.search(regex_city, adresse) if regex_city else None
+                city = match.group(1).strip() if match else ""
+
+                loc_text = str(row.get('location', '')).lower()
+                city_text = city.lower()
+
+                if any(loc.lower() in (loc_text + ' ' + city_text) for loc in detected_locations):
+                    location_score = 1
+                elif city_text or loc_text:
+                    location_score = -1
+                else:
+                    location_score = 0
+
             final_score = (
                     (semantic_score * SEMANTIC_WEIGHT) +
                     (tag_score * TAG_WEIGHT) +
                     (food_score * FOOD_WEIGHT) +
-                    (hours_score * HOURS_WEIGHT)
-                    # (location_score * LOCATION_WEIGHT)
+                    (hours_score * HOURS_WEIGHT) +
+                    (location_score * LOCATION_WEIGHT)
             )
 
             results.append({
@@ -306,8 +324,8 @@ class RestaurantSearch:
                     'times': [t.strftime('%H:%M') for t in detected_times],
                     'meal_periods': detected_meal_periods
                 },
-                # 'location_score': location_score,
-                # 'detected_locations': detected_locations,
+                'location_score': location_score,
+                'detected_locations': detected_locations,
             })
 
         results.sort(key=lambda x: x['final_score'], reverse=True)

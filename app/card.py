@@ -58,8 +58,8 @@ class RestaurantCard(Static):
         self.hours_score = hours_score
         self.hours_match = hours_match
         self.temporal_info = temporal_info or {}
-        # self.location_score = location_score
-        # self.detected_locations = detected_locations or []
+        self.location_score = location_score
+        self.detected_locations = detected_locations or []
 
     def compose(self) -> ComposeResult:
         """
@@ -113,8 +113,7 @@ class RestaurantCard(Static):
             tag_list = [f"{tag} ({score:.2f})" for tag, score in
                         sorted(self.matched_tags.items(), key=lambda x: x[1], reverse=True)]
             tags_display = f"\n🎯 Predicted: {', '.join(tag_list[:5])}"
-        #
-        # # Temporal info display
+
         temporal_display = ""
         if self.temporal_info:
             temporal_parts = []
@@ -128,11 +127,9 @@ class RestaurantCard(Static):
             if temporal_parts:
                 match_indicator = "✓" if self.hours_match else "✗"
                 temporal_display = f"\n{match_indicator} Temporal: {' | '.join(temporal_parts)}"
-
-        # # Location info display
-        # location_display = ""
-        # if self.detected_locations and self.location_score > 0:
-        #     location_display = f"\n📍 Location match: {', '.join(self.detected_locations)}"
+        location_display = ""
+        if self.detected_locations and self.location_score > 0:
+            location_display = f"\n📍 Location match: {', '.join(self.detected_locations)}"
 
         contact_parts = []
         if pd.notna(row.get('phone')):
@@ -150,8 +147,8 @@ class RestaurantCard(Static):
             score_parts.append(f"Food: {self.food_score:.3f}")
         if self.hours_score:
             score_parts.append(f"Hours: {self.hours_score:.3f}")
-        # if self.location_score is not None and self.location_score > 0:
-        #     score_parts.append(f"Location: {self.location_score:.3f}")
+        if self.location_score is not None and self.location_score > 0:
+            score_parts.append(f"Location: {self.location_score:.3f}")
 
         score_display = " | ".join(score_parts)
 
@@ -165,8 +162,8 @@ class RestaurantCard(Static):
             content += f"{tags_display}"
         if temporal_display:
             content += f"{temporal_display}"
-        # if location_display:
-        #     content += f"{location_display}"
+        if location_display:
+            content += f"{location_display}"
         if contact_line:
             content += f"\n[dim]{contact_line}[/dim]"
         content += f"\n[dim]📊 {score_display}[/dim]"

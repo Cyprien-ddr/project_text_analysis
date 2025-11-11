@@ -266,7 +266,7 @@ class TemporalLocationDetector:
         locations = []
 
         for ent in doc.ents:
-            if ent.label_ in ['GPE', 'LOC', 'FAC']:
+            if ent.label_ in ['GPE',]:
                 locations.append(ent.text)
 
         return locations
@@ -433,46 +433,62 @@ if __name__ == "__main__":
     df = pd.read_csv('./data/michelin_thailand_details.csv')
 
     # Trouver la ligne où name == 'AKKEE'
-    akkee_row = df[df['name'] == 'AKKEE']
+    akkee_row = df[df['name'] == 'La Voi']
 
-    # Extraire opening_hours (première occurrence si plusieurs)
-    opening_hours = None
-    if not akkee_row.empty:
-        opening_hours = akkee_row.iloc[0]['opening_hours']
-
-    print(opening_hours)
-    print(type(opening_hours))
-    opening_hours = ast.literal_eval(opening_hours)
-    print(opening_hours)
-    print(type(opening_hours))
-    if detected_days or detected_times or detected_meal_periods:
-        # opening_hours = row.get('opening_hours', 'N/A')
-        # opening_hours = {""Monday"": ""17:30-23:00"", ""Tuesday"": ""17:30-23:00"", ""Wednesday"": ""closed"", ""Thursday"": ""17:30-23:00"", ""Friday"": ""17:30-23:00"", ""Saturday"": ""12:00-15:00, 17:30-23:00"", ""Sunday"": ""12:00-15:00, 17:30-23:00""}
-        if opening_hours and opening_hours != 'N/A':
-            print("in")
-            if isinstance(opening_hours, str):
-                print("str")
-                import json
-
-                try:
-                    opening_hours = json.loads(opening_hours.replace('""', '"'))
-                except:
-                    opening_hours = None
-            # if opening_hours is dict:
-            if isinstance(opening_hours, dict):
-                print("dict")
-                print(f'opening_hours: {opening_hours}')
-                hours_match, hours_score = temporal_detector.check_restaurant_hours(
-                    opening_hours,
-                    detected_days,
-                    detected_times,
-                    detected_meal_periods
-                )
-                hours_score = 1 if hours_match == True else -1
-            else:
-                print(f"else: {type(opening_hours)}")
-    print(hours_score, hours_match)
-    print(detected_days, detected_times, detected_meal_periods, detected_locations)
-    print(
-        f"Is match: {hours_match}, Score: {hours_score:.2f}"
-    )
+    print(temporal_detector.detect_locations(akkee_row.iloc[0]['address']))
+    for idx in range(len(df)):
+        adresse = df.loc[idx, 'address']
+        match = re.search(r",\s*([^,]+),\s*\d{3,10},\s*[^,]+$", adresse)
+        if match:
+            df.loc[idx, 'city'] = match.group(1).strip()
+            print(df.loc[idx, 'city'])
+        else:
+            df.loc[idx, 'city'] = None
+        # if match:
+        #     city = match.group(1).strip()
+        #     print(city)
+    # match = re.search(r",\s*([^,]+),\s*\d{5},\s*[^,]+$", akkee_row.iloc[0]['address'])
+    # if match:
+    #     ville = match.group(1).strip()
+    #     print(ville)
+    # # Extraire opening_hours (première occurrence si plusieurs)
+    # opening_hours = None
+    # if not akkee_row.empty:
+    #     opening_hours = akkee_row.iloc[0]['opening_hours']
+    #
+    # print(opening_hours)
+    # print(type(opening_hours))
+    # opening_hours = ast.literal_eval(opening_hours)
+    # print(opening_hours)
+    # print(type(opening_hours))
+    # if detected_days or detected_times or detected_meal_periods:
+    #     # opening_hours = row.get('opening_hours', 'N/A')
+    #     # opening_hours = {""Monday"": ""17:30-23:00"", ""Tuesday"": ""17:30-23:00"", ""Wednesday"": ""closed"", ""Thursday"": ""17:30-23:00"", ""Friday"": ""17:30-23:00"", ""Saturday"": ""12:00-15:00, 17:30-23:00"", ""Sunday"": ""12:00-15:00, 17:30-23:00""}
+    #     if opening_hours and opening_hours != 'N/A':
+    #         print("in")
+    #         if isinstance(opening_hours, str):
+    #             print("str")
+    #             import json
+    #
+    #             try:
+    #                 opening_hours = json.loads(opening_hours.replace('""', '"'))
+    #             except:
+    #                 opening_hours = None
+    #         # if opening_hours is dict:
+    #         if isinstance(opening_hours, dict):
+    #             print("dict")
+    #             print(f'opening_hours: {opening_hours}')
+    #             hours_match, hours_score = temporal_detector.check_restaurant_hours(
+    #                 opening_hours,
+    #                 detected_days,
+    #                 detected_times,
+    #                 detected_meal_periods
+    #             )
+    #             hours_score = 1 if hours_match == True else -1
+    #         else:
+    #             print(f"else: {type(opening_hours)}")
+    # print(hours_score, hours_match)
+    # print(detected_days, detected_times, detected_meal_periods, detected_locations)
+    # print(
+    #     f"Is match: {hours_match}, Score: {hours_score:.2f}"
+    # )
