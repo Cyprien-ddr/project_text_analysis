@@ -141,13 +141,13 @@ class RestaurantCard(Static):
         score_parts = [f"Total: {self.score:.3f}"]
         if self.semantic_score is not None:
             score_parts.append(f"Semantic: {self.semantic_score:.3f}")
-        if self.tag_score is not None and self.tag_score > 0:
+        if self.tag_score is not None and self.tag_score != 0:
             score_parts.append(f"Tags: {self.tag_score:.3f}")
-        if self.food_score is not None and self.food_score > 0:
+        if self.food_score is not None and self.food_score != 0:
             score_parts.append(f"Food: {self.food_score:.3f}")
-        if self.hours_score:
+        if self.hours_score != 0:
             score_parts.append(f"Hours: {self.hours_score:.3f}")
-        if self.location_score is not None and self.location_score > 0:
+        if self.location_score is not None and self.location_score != 0:
             score_parts.append(f"Location: {self.location_score:.3f}")
 
         score_display = " | ".join(score_parts)
