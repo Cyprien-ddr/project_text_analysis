@@ -9,8 +9,8 @@ import pickle
 from tqdm import tqdm
 
 MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-INDEX_FILE = "restaurants.index"
-DATA_FILE = "restaurants.pkl"
+INDEX_FILE = "./model/restaurants.index"
+DATA_FILE = "./model/restaurants.pkl"
 
 
 def load_data():

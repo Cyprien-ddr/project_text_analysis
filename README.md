@@ -67,28 +67,29 @@ pip install -r requirements.txt
 
 ```bash
 # Run all scraping stages
-python main.py --max-pages 20
+python3 ./app/scraping.py --all --api-key [YOUR GOOGLE API KEY]
 
 # Or run specific stages
-python main.py --stage global           # Stage 1 only
-python main.py --stage details          # Stage 2 only
-python main.py --stage reviews --google-api-key YOUR_KEY  # Stage 3 only
+python3 ./data/scraping.py --globals  # Stage 1 only
+python3 ./data/scraping.py --details  # Stage 2 only
+python3 ./data/scraping.py --hours    # Stage 3 only
+python3 ./data/scraping.py --reviews --api-key [YOUR GOOGLE API KEY]  # Stage Review only
 ```
 
 ### 2. Build the Search Index
 
 ```bash
-python ingest.py
+python3 ingest.py
 ```
 
 This creates:
-- `restaurants.index` - FAISS vector index
-- `restaurants.pkl` - Processed restaurant data
+- `./model/restaurants.index` - FAISS vector index
+- `./model/restaurants.pkl` - Processed restaurant data
 
 ### 3. Train ML Tag Predictor (Optional)
 
 ```bash
-python processing.py
+python3 ./app/processing.py
 ```
 
 Or the model will auto-train on first use if missing.
@@ -96,7 +97,7 @@ Or the model will auto-train on first use if missing.
 ### 4. Launch Search Interface
 
 ```bash
-python search_faiss.py
+python3 ./app/app.py
 ```
 
 ## 🕷️ Scraping Data
@@ -104,7 +105,7 @@ python search_faiss.py
 ### Stage 1: Restaurant Listings
 
 ```bash
-python global_scraper.py
+python3 ./app/global_scraper.py
 ```
 
 **Collects:**
@@ -116,12 +117,12 @@ python global_scraper.py
 - Cuisine types
 - Michelin Guide URLs
 
-**Output:** `michelin_thailand.json`, `michelin_thailand.csv`
+**Output:** `./data/michelin_thailand.json`, `./data/michelin_thailand.csv`
 
 ### Stage 2: Detailed Information
 
 ```bash
-python details_scraper.py
+python3 ./app/details_scraper.py
 ```
 
 **Collects:**
@@ -133,12 +134,12 @@ python details_scraper.py
 - Websites
 - Nearby restaurants (up to 9)
 
-**Output:** `michelin_thailand_details.json`, `michelin_thailand_details.csv`
+**Output:** `./data/michelin_thailand_details.json`, `./datamichelin_thailand_details.csv`
 
 ### Stage 3: Google Reviews
 
 ```bash
-python google_reviews_scraper.py --api-key YOUR_API_KEY
+python3 ./app/google_reviews_scraper.py --api-key YOUR_API_KEY
 ```
 
 **Collects:**
@@ -148,30 +149,21 @@ python google_reviews_scraper.py --api-key YOUR_API_KEY
 - Publish dates
 - Language codes
 
-**Output:** `google_reviews.csv`, `google_reviews_api.json`
+**Output:** `./data/google_reviews.csv`, `./data/google_reviews_api.json`
 
 **Getting an API Key:**
 1. Visit [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable "Places API (New)"
 3. Create credentials → API Key
 
-### Complete Pipeline
-
-```bash
-python main.py \
-  --max-pages 20 \
-  --max-restaurants 100 \
-  --google-api-key YOUR_KEY
-```
-
 ## 🏗️ Building the Search Index
 
 ```bash
-python ingest.py
+python3 ./app/ingest.py
 ```
 
 **Process:**
-1. Loads data from `michelin_thailand.csv`, `michelin_thailand_details.csv`, `google_reviews.csv`
+1. Loads data from `./data/michelin_thailand.csv`, `./data/michelin_thailand_details.csv`, `./data/google_reviews.csv`
 2. Merges datasets on restaurant names
 3. Creates searchable text combining: name + cuisine + description + English reviews
 4. Generates embeddings using `sentence-transformers/all-MiniLM-L6-v2`
@@ -179,15 +171,15 @@ python ingest.py
 6. Saves index and processed data
 
 **Output:**
-- `restaurants.index` - FAISS vector index
-- `restaurants.pkl` - Pickled DataFrame
+- `./data/restaurants.index` - FAISS vector index
+- `./data/restaurants.pkl` - Pickled DataFrame
 
 ## 🔍 Using the Search Interface
 
 ### Launch the TUI
 
 ```bash
-python search_faiss.py
+python3 ./app/app.py
 ```
 
 ### Features
@@ -202,11 +194,6 @@ python search_faiss.py
 - 🏆 Awards (3 star, 2 star, 1 star, Bib Gourmand)
 - 🍽️ Cuisine (Italian, Thai, Japanese, etc.)
 - 💰 Price range
-
-**Keyboard Shortcuts:**
-- `Ctrl+Q` - Quit
-- `Ctrl+R` - Reset filters
-- `Enter` - Search
 
 **Results Display:**
 Each result shows:
@@ -223,11 +210,11 @@ Each result shows:
 ### Training the Model
 
 ```bash
-python processing.py
+python3 ./app/processing.py
 ```
 
 **Process:**
-1. Extracts tags from `michelin_thailand_details.csv` ("Good for" tags)
+1. Extracts tags from `./data/michelin_thailand_details.csv` ("Good for" tags)
 2. Builds multi-label dataset from descriptions
 3. Trains RoBERTa-base classifier with class balancing
 4. Optimizes classification threshold via F1-macro
@@ -251,16 +238,6 @@ python processing.py
 - Group dining
 - Solo dining
 - And more...
-
-### Using the Predictor
-
-```python
-from tag_predictor import TagPredictor
-
-predictor = TagPredictor()
-tags = predictor.predict_tags("Perfect for romantic evenings")
-# Returns: {'Date night': 0.87, 'Trending': 0.65}
-```
 
 ## 🏛️ Architecture
 ```
@@ -298,26 +275,19 @@ tags = predictor.predict_tags("Perfect for romantic evenings")
       └───────────────────────┘
 ```
 
-### Scoring Weights
-
-```python
-SEMANTIC_WEIGHT = 1.8  # Vector similarity
-TAG_WEIGHT = 0.6       # ML predicted tags
-FOOD_WEIGHT = 0.4      # Food term detection
-```
-
 ## 📂 Output Files
 
 ### Scraping Outputs
 
-| File | Description |
-|------|-------------|
-| `michelin_thailand.json` | Basic listings (JSON) |
-| `michelin_thailand.csv` | Basic listings (CSV) |
-| `michelin_thailand_details.json` | Detailed info (JSON) |
-| `michelin_thailand_details.csv` | Detailed info (CSV) |
-| `google_reviews.csv` | All reviews (CSV) |
-| `google_reviews_api.json` | Review API responses (JSON) |
+| File | Description                      |
+|------|----------------------------------|
+| `michelin_thailand.json` | Basic listings (JSON)            |
+| `michelin_thailand.csv` | Basic listings (CSV)             |
+| `michelin_thailand_details.json` | Detailed info (JSON)             |
+| `michelin_thailand_details.csv` | Detailed info (CSV)              |
+| `google_reviews.csv` | All reviews (CSV)                |
+| `google_reviews_api.json` | Review API responses (JSON)      |
+| `michelin_thailand_details.csv` | Detailes info with missing hours |
 
 ### Index & Model Outputs
 
@@ -335,9 +305,11 @@ FOOD_WEIGHT = 0.4      # Food term detection
 Edit `search.py`:
 
 ```python
-SEMANTIC_WEIGHT = 1.8  # Adjust semantic importance
-TAG_WEIGHT = 0.6       # Adjust tag matching weight
-FOOD_WEIGHT = 0.4      # Adjust food detection weight
+SEMANTIC_WEIGHT = 1.8   # Adjust semantic importance
+TAG_WEIGHT = 0.6        # Adjust tag matching weight
+FOOD_WEIGHT = 0.4       # Adjust food detection weight
+HOURS_WEIGHT = 1.0      # Adjust hours detection weight
+LOCATION_WEIGHT = 0.8   # Adjust location detection weight
 ```
 
 ### Embedding Model
@@ -381,7 +353,7 @@ pip install faiss-gpu
 
 ```bash
 # Train from scratch
-python processing.py
+python3 ./app/processing.py
 
 # Or download pre-trained (if available)
 # Place in ./model/michelin_model/
@@ -405,7 +377,7 @@ MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # Smaller
 ### Search Returns No Results
 
 1. Check if index exists: `ls restaurants.index`
-2. Rebuild index: `python ingest.py`
+2. Rebuild index: `python3 ./app/ingest.py`
 3. Try broader query or fewer filters
 
 ## 📊 Data Fields Reference
