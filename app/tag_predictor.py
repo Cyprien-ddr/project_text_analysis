@@ -1,10 +1,11 @@
+import os
+
 import pandas as pd
 import torch
-
-ML_MODEL_PATH = "./model/michelin_model"
-import os
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+
+ML_MODEL_PATH = "./model/michelin_model"
 
 class TagPredictor:
     """

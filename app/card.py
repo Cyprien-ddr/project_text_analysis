@@ -106,7 +106,7 @@ class RestaurantCard(Static):
 
         description = ""
         if pd.notna(row.get('description')):
-            description = str(row['description'])[:200]
+            description = str(row['description'])[:200] + '...'
 
         tags_display = ""
         if self.matched_tags:
@@ -166,6 +166,6 @@ class RestaurantCard(Static):
             content += f"{location_display}"
         if contact_line:
             content += f"\n[dim]{contact_line}[/dim]"
-        content += f"\n[dim]📊 {score_display}[/dim]"
+        content += f"\n[dim]{score_display}[/dim]"
 
         yield Static(content, classes="restaurant-card")

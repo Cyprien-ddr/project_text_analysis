@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
+import json
+import csv
+
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import json
-import csv
-import time
-import pandas as pd
 
 
 def load_restaurants_from_csv(csv_file: str) -> pd.DataFrame | None:
@@ -489,7 +489,7 @@ class MichelinDetailScraper:
             json.dump(self.restaurants_details, f, ensure_ascii=False, indent=2)
         print(f"Data saved in {filename}")
 
-    def save_to_csv(self, filename:str ='michelin_thailand_details.csv') -> None:
+    def save_to_csv(self, filename:str ='./data/michelin_thailand_details.csv') -> None:
         """
         Export the aggregated restaurant details to a CSV file.
 
@@ -501,7 +501,7 @@ class MichelinDetailScraper:
         Writes headers from the first record and saves using UTF-8 encoding. Prints a message
         and returns early if no data is available.
 
-        :param filename: Output path for the CSV file. Defaults to 'michelin_thailand_details.csv'.
+        :param filename: Output path for the CSV file. Defaults to 'data/michelin_thailand_details.csv'.
         :type filename: str
         :return: None
         :rtype: None
@@ -540,7 +540,7 @@ if __name__ == "__main__":
 
     try:
         restaurants = scraper.scrape_all_from_csv(
-            csv_file='michelin_thailand.csv',
+            csv_file='./data/michelin_thailand.csv',
             start_index=0,
             max_restaurants=None
         )

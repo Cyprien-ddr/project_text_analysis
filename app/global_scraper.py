@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 from typing import Any
+import json
+import csv
+import time
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -7,9 +10,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import json
-import csv
-import time
 
 
 def extract_restaurant_info(element) -> dict[Any, Any] | None:
@@ -246,7 +246,7 @@ class MichelinThailandScraper:
         print(f"Scraping finished: {len(self.restaurants)} restaurants")
         return self.restaurants
 
-    def save_to_json(self, filename='michelin_thailand.json') -> None:
+    def save_to_json(self, filename='./data/michelin_thailand.json') -> None:
         """
         Write the collected restaurants to a JSON file.
 
@@ -260,14 +260,14 @@ class MichelinThailandScraper:
             json.dump(self.restaurants, f, ensure_ascii=False, indent=2)
         print(f"Data saved in {filename}")
 
-    def save_to_csv(self, filename='michelin_thailand.csv')-> None:
+    def save_to_csv(self, filename='./data/michelin_thailand.csv')-> None:
         """
         Write collected restaurants to a CSV file.
 
         If no restaurants have been scraped, prints a message and returns early.
         Writes UTF-8 encoded CSV with header inferred from the first restaurant dict's keys.
 
-        :param filename: Output CSV file path. Defaults to 'michelin_thailand.csv'.
+        :param filename: Output CSV file path. Defaults to './data/michelin_thailand.csv'.
         :type filename: str
 
         :return: None

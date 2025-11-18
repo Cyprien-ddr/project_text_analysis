@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-from datetime import datetime
-
-import pandas as pd
-import json
 import time
 from typing import Optional
+import json
 
+import argparse
+import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,8 +12,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import argparse
-import json
 
 
 
@@ -554,7 +551,7 @@ def scrape_missing_hours(
     return df
 
 
-def show_statistics(csv_path='michelin_thailand_details.csv'):
+def show_statistics(csv_path='./data/michelin_thailand_details.csv'):
     """
     Displays statistics about restaurant opening hours from a CSV file.
 
@@ -564,7 +561,7 @@ def show_statistics(csv_path='michelin_thailand_details.csv'):
 
     Args:
         csv_path (str): Path to the CSV file containing restaurant data. Defaults to
-            'michelin_thailand_details.csv'.
+            './data/michelin_thailand_details.csv'.
     """
     df = pd.read_csv(csv_path)
 

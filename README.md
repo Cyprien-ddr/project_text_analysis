@@ -44,7 +44,7 @@ A comprehensive system for scraping, indexing, and intelligently searching Miche
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone git@github.com:Cyprien-ddr/project_text_analysis.git michelin-thailand-search
 cd michelin-thailand-search
 
 # Install dependencies
@@ -263,7 +263,6 @@ tags = predictor.predict_tags("Perfect for romantic evenings")
 ```
 
 ## 🏛️ Architecture
-
 ```
 ┌─────────────────────────────────────────────────────┐
 │                 User Query                          │
@@ -274,28 +273,24 @@ tags = predictor.predict_tags("Perfect for romantic evenings")
 ┌─────────────────────────────────────────────────────┐
 │              RestaurantSearch                       │
 │  ┌───────────────────────────────────────────────┐  │
-│  │ 1. Apply Filters (location, price, cuisine)  │  │
-│  │ 2. Generate Query Embedding                  │  │
-│  │ 3. FAISS Semantic Search (top K)             │  │
+│  │ 1. Apply Filters (location, cuisine, price)   │  │
+│  │ 2. Generate Query Embedding (Sentence-BERT)   │  │
+│  │ 3. FAISS Semantic Search (top K)              │  │
+│  │ 4. Detect ML Tags (TagPredictor)              │  │
+│  │ 5. Detect Food (Food Regex / Dataset)         │  │
+│  │ 6. Temporal & Location Detection              │  │
 │  └───────────────────────────────────────────────┘  │
 └──────────────────┬──────────────────────────────────┘
                    │
-      ┌────────────┼────────────┐
-      ▼            ▼            ▼
-┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Semantic │ │   Tag    │ │  Food    │
-│  Score   │ │ Predictor│ │ Detector │
-│  (FAISS) │ │ (RoBERTa)│ │ (Regex)  │
-└────┬─────┘ └────┬─────┘ └────┬─────┘
-     │            │            │
-     └────────────┼────────────┘
-                  ▼
-      ┌───────────────────────┐
-      │   Weighted Scoring    │
-      │ Total = 1.8×Semantic  │
-      │       + 0.6×Tags      │
-      │       + 0.4×Food      │
-      └───────────┬───────────┘
+                   ▼
+      ┌───────────────────────────────┐
+      │      Weighted Scoring         │
+      │ 1.8×Semantic                  │
+      │ 0.6×Tags                      │
+      │ 0.4×Food                      │
+      │ 1.0×Hours                     │
+      │ 0.8×Location                  │
+      └───────────┬───────────────────┘
                   ▼
       ┌───────────────────────┐
       │   Ranked Results      │

@@ -1,3 +1,5 @@
+import warnings
+
 import pandas as pd
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from datasets import Dataset
@@ -5,7 +7,6 @@ import torch
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.model_selection import train_test_split
-import warnings
 
 warnings.filterwarnings('ignore')
 
@@ -103,7 +104,7 @@ def train_multi_label_model(csv_path='data/michelin_thailand_details.csv', epoch
     train_dataset, test_dataset, label_names = build_dataset(csv_path)
     num_labels = len(label_names)
 
-    print("\n📊 LABEL DISTRIBUTION ANALYSIS")
+    print("\nLABEL DISTRIBUTION ANALYSIS")
     print("=" * 70)
     df = pd.read_csv(csv_path)
     tag_column = 'good_for_tags' if 'good_for_tags' in df.columns else 'tags'
@@ -252,7 +253,7 @@ def train_multi_label_model(csv_path='data/michelin_thailand_details.csv', epoch
     print(f"Final F1 (macro): {eval_results['eval_f1_macro']:.4f}")
     print(f"Best Threshold: {eval_results.get('eval_best_threshold', 0.5):.2f}")
 
-    print("\n📊 Per-label F1 scores:")
+    print("\n Per-label F1 scores:")
     label_f1_scores = []
     for label in label_names:
         key = f"eval_f1_{label.replace(' ', '_')}"
@@ -261,7 +262,7 @@ def train_multi_label_model(csv_path='data/michelin_thailand_details.csv', epoch
             label_f1_scores.append((label, f1_val, label_counts[label]))
             print(f"  {label:25s}: {f1_val:.4f} (n={label_counts[label]})")
 
-    print("\n⚠️  Labels with low F1 (<0.3):")
+    print("\n  Labels with low F1 (<0.3):")
     low_f1_labels = [(l, f1, n) for l, f1, n in label_f1_scores if f1 < 0.3]
     if low_f1_labels:
         for label, f1_val, count in low_f1_labels:
@@ -276,10 +277,10 @@ def train_multi_label_model(csv_path='data/michelin_thailand_details.csv', epoch
     label_df.to_csv("./model/michelin_model/labels.csv", index=False)
 
     print("\n" + "=" * 70)
-    print("✅ TRAINING COMPLETE")
+    print(" TRAINING COMPLETE")
     print("=" * 70)
     print(f"Model saved in './model/michelin_model'")
-    print(f"Labels saved in './modle/michelin_model/labels.csv'")
+    print(f"Labels saved in './model/michelin_model/labels.csv'")
 
     best_threshold = eval_results.get('eval_best_threshold', 0.5)
     with open("./model/michelin_model/best_threshold.txt", "w") as f:

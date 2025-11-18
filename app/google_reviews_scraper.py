@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
-"""
-Improved Google Reviews scraper using Google Places API.
-
-This script uses the official Google Places API (New) to get full review text
-and avoid truncation issues. It properly handles duplicates and provides
-complete review data.
-"""
-
-import requests
 import json
 import csv
 import time
+import os
+
+import requests
 import pandas as pd
 from typing import List, Dict, Optional
-import os
 
 
 class GooglePlacesReviewsScraper:
@@ -252,13 +245,13 @@ class GooglePlacesReviewsScraper:
         
         return self.reviews_data
     
-    def save_to_json(self, filename: str = 'google_reviews_api.json') -> None:
+    def save_to_json(self, filename: str = './data/google_reviews_api.json') -> None:
         """Save reviews data to JSON file."""
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(self.reviews_data, f, ensure_ascii=False, indent=2)
         print(f"\nData saved to {filename}")
     
-    def save_reviews_only_csv(self, filename: str = 'google_reviews.csv') -> None:
+    def save_reviews_only_csv(self, filename: str = './data/google_reviews.csv') -> None:
         """
         Save ONLY the review texts to CSV (one row per review).
         No duplicates, clean format.

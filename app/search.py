@@ -1,9 +1,8 @@
 import ast
 import re
 import os
-import sys
-from difflib import SequenceMatcher
 
+from difflib import SequenceMatcher
 import pandas as pd
 import numpy as np
 import faiss
@@ -241,7 +240,6 @@ class RestaurantSearch:
 
             tag_score = 0.
             matched_tags = {}
-            restaurant_tags = []
 
             if predicted_tags and pd.notna(row.get('tags')):
                 restaurant_tags_str = str(row['tags'])
